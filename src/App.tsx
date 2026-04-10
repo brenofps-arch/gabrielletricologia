@@ -3,7 +3,9 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import AuthGuard from "./components/AuthGuard";
 import AppLayout from "./components/AppLayout";
+import Auth from "./pages/Auth";
 import Index from "./pages/Index";
 import Agenda from "./pages/Agenda";
 import Pacientes from "./pages/Pacientes";
@@ -22,7 +24,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route element={<AppLayout />}>
+          <Route path="/auth" element={<Auth />} />
+          <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
             <Route path="/" element={<Index />} />
             <Route path="/agenda" element={<Agenda />} />
             <Route path="/pacientes" element={<Pacientes />} />
