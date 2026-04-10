@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Settings,
   Stethoscope,
+  LogOut,
 } from "lucide-react";
 
 const navItems = [
