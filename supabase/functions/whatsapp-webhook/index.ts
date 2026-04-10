@@ -1,0 +1,325 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  // Handle CORS
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  // Meta webhook verification (GET request)
+  if (req.method === "GET") {
+    const url = new URL(req.url);
+    const mode = url.searchParams.get("hub.mode");
+    const token = url.searchParams.get("hub.verify_token");
+    const challenge = url.searchParams.get("hub.challenge");
+
+    const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
+    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+      console.log("Webhook verified successfully");
+      return new Response(challenge, { status: 200 });
+    }
+    return new Response("Forbidden", { status: 403 });
+  }
+
+  // Process incoming messages (POST)
+  try {
+    const body = await req.json();
+    console.log("Webhook received:", JSON.stringify(body));
+
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
+    const WHATSAPP_PHONE_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    // The user_id of the doctor who owns this WhatsApp integration
+    const OWNER_USER_ID = Deno.env.get("WHATSAPP_OWNER_USER_ID");
+
+    if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID || !OWNER_USER_ID) {
+      console.error("Missing WhatsApp configuration");
+      return new Response(JSON.stringify({ error: "Missing configuration" }), {
+        status: 200, // Always return 200 to Meta to avoid retries
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Extract message data from Meta webhook format
+    const entry = body?.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const value = changes?.value;
+
+    if (!value?.messages?.[0]) {
+      // Status update or other non-message event
+      return new Response(JSON.stringify({ status: "ok" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const message = value.messages[0];
+    const contact = value.contacts?.[0];
+    const phoneNumber = message.from;
+    const contactName = contact?.profile?.name || "Desconhecido";
+    const messageText = message.text?.body || "";
+    const waMessageId = message.id;
+
+    console.log(`Message from ${contactName} (${phoneNumber}): ${messageText}`);
+
+    // Find or create conversation
+    let { data: conversation } = await supabase
+      .from("whatsapp_conversations")
+      .select("*")
+      .eq("phone_number", phoneNumber)
+      .eq("user_id", OWNER_USER_ID)
+      .eq("is_active", true)
+      .single();
+
+    if (!conversation) {
+      const { data: newConv, error: convError } = await supabase
+        .from("whatsapp_conversations")
+        .insert({
+          user_id: OWNER_USER_ID,
+          phone_number: phoneNumber,
+          contact_name: contactName,
+          last_message: messageText,
+          conversation_state: "greeting",
+          context_data: {},
+        })
+        .select()
+        .single();
+
+      if (convError) {
+        console.error("Error creating conversation:", convError);
+        throw convError;
+      }
+      conversation = newConv;
+    } else {
+      await supabase
+        .from("whatsapp_conversations")
+        .update({ last_message: messageText, contact_name: contactName })
+        .eq("id", conversation.id);
+    }
+
+    // Save inbound message
+    await supabase.from("whatsapp_messages").insert({
+      conversation_id: conversation.id,
+      direction: "inbound",
+      message_text: messageText,
+      message_type: "text",
+      wa_message_id: waMessageId,
+      status: "delivered",
+    });
+
+    // Get conversation history for AI context
+    const { data: recentMessages } = await supabase
+      .from("whatsapp_messages")
+      .select("direction, message_text, created_at")
+      .eq("conversation_id", conversation.id)
+      .order("created_at", { ascending: true })
+      .limit(20);
+
+    // Get available appointment slots (next 7 days)
+    const today = new Date();
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    const { data: existingAppointments } = await supabase
+      .from("appointments")
+      .select("appointment_date, appointment_time")
+      .eq("user_id", OWNER_USER_ID)
+      .gte("appointment_date", today.toISOString().split("T")[0])
+      .lte("appointment_date", nextWeek.toISOString().split("T")[0])
+      .neq("status", "cancelled");
+
+    // Build AI prompt
+    const conversationHistory = (recentMessages || [])
+      .map((m) => `${m.direction === "inbound" ? "Paciente" : "Secretária"}: ${m.message_text}`)
+      .join("\n");
+
+    const busySlots = (existingAppointments || [])
+      .map((a) => `${a.appointment_date} ${a.appointment_time}`)
+      .join(", ");
+
+    const systemPrompt = `Você é a secretária virtual da Clínica TricoCare, especializada em tricologia (saúde capilar).
+
+REGRAS:
+- Seja simpática, profissional e objetiva
+- Use emojis com moderação (1-2 por mensagem)
+- Responda em português do Brasil
+- Horário de atendimento: Segunda a Sexta, 8h às 18h
+- Consultas duram em média 45-60 minutos
+- Intervalos entre consultas: 15 minutos
+
+FLUXO DE AGENDAMENTO:
+1. Cumprimente e pergunte como pode ajudar
+2. Se quer agendar: colete nome completo, queixa principal
+3. Sugira horários disponíveis
+4. Confirme o agendamento
+
+ESTADO ATUAL DA CONVERSA: ${conversation.conversation_state}
+DADOS COLETADOS: ${JSON.stringify(conversation.context_data)}
+HORÁRIOS OCUPADOS (próx. 7 dias): ${busySlots || "Nenhum agendamento ainda"}
+
+IMPORTANTE: Se o paciente confirmar um agendamento, responda com o JSON de ação no final da mensagem, separado por |||ACTION|||:
+{"action":"schedule","patient_name":"Nome","phone":"telefone","complaint":"queixa","date":"YYYY-MM-DD","time":"HH:MM"}
+
+Exemplo de resposta com ação:
+Perfeito! ✅ Sua consulta está agendada para dia 15/04 às 10h. Enviaremos um lembrete 24h antes!|||ACTION|||{"action":"schedule","patient_name":"Maria","phone":"5511999999","complaint":"queda capilar","date":"2026-04-15","time":"10:00"}
+
+Se precisar atualizar o estado da conversa, adicione também:
+|||STATE|||{"state":"scheduling","context":{"name":"Maria","complaint":"queda capilar"}}`;
+
+    // Call AI
+    let aiResponse = "Olá! 👋 Bem-vinda à Clínica TricoCare. Estou com dificuldades técnicas no momento, mas uma de nossas atendentes entrará em contato em breve!";
+
+    if (LOVABLE_API_KEY) {
+      try {
+        const aiMessages = [
+          { role: "system", content: systemPrompt },
+          ...((recentMessages || []).map((m) => ({
+            role: m.direction === "inbound" ? "user" : "assistant",
+            content: m.message_text,
+          }))),
+        ];
+
+        // Don't duplicate the last user message since it's already in history
+        // but if history is empty or last message is not from user, add it
+        if (aiMessages.length <= 1 || aiMessages[aiMessages.length - 1].role !== "user") {
+          aiMessages.push({ role: "user", content: messageText });
+        }
+
+        const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: aiMessages,
+          }),
+        });
+
+        if (aiRes.ok) {
+          const aiData = await aiRes.json();
+          aiResponse = aiData.choices?.[0]?.message?.content || aiResponse;
+        } else {
+          console.error("AI error:", aiRes.status, await aiRes.text());
+        }
+      } catch (aiError) {
+        console.error("AI call failed:", aiError);
+      }
+    }
+
+    // Parse actions from AI response
+    let responseText = aiResponse;
+    let actionData = null;
+    let stateData = null;
+
+    if (aiResponse.includes("|||ACTION|||")) {
+      const parts = aiResponse.split("|||ACTION|||");
+      responseText = parts[0].trim();
+      try {
+        const actionPart = parts[1].split("|||STATE|||")[0].trim();
+        actionData = JSON.parse(actionPart);
+      } catch (e) {
+        console.error("Failed to parse action:", e);
+      }
+    }
+
+    if (aiResponse.includes("|||STATE|||")) {
+      const parts = aiResponse.split("|||STATE|||");
+      try {
+        stateData = JSON.parse(parts[parts.length - 1].trim());
+      } catch (e) {
+        console.error("Failed to parse state:", e);
+      }
+    }
+
+    // Execute action if present
+    if (actionData?.action === "schedule") {
+      const { error: aptError } = await supabase.from("appointments").insert({
+        user_id: OWNER_USER_ID,
+        patient_name: actionData.patient_name,
+        patient_phone: phoneNumber,
+        chief_complaint: actionData.complaint,
+        appointment_date: actionData.date,
+        appointment_time: actionData.time,
+        status: "confirmed",
+        source: "whatsapp",
+      });
+
+      if (aptError) {
+        console.error("Error creating appointment:", aptError);
+      } else {
+        console.log("Appointment created successfully");
+      }
+    }
+
+    // Update conversation state
+    if (stateData) {
+      await supabase
+        .from("whatsapp_conversations")
+        .update({
+          conversation_state: stateData.state,
+          context_data: stateData.context,
+        })
+        .eq("id", conversation.id);
+    }
+
+    // Send response via WhatsApp
+    const sendRes = await fetch(
+      `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_ID}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: phoneNumber,
+          type: "text",
+          text: { body: responseText },
+        }),
+      }
+    );
+
+    const sendData = await sendRes.json();
+    console.log("WhatsApp send response:", JSON.stringify(sendData));
+
+    // Save outbound message
+    await supabase.from("whatsapp_messages").insert({
+      conversation_id: conversation.id,
+      direction: "outbound",
+      message_text: responseText,
+      message_type: "text",
+      wa_message_id: sendData?.messages?.[0]?.id,
+      status: sendRes.ok ? "sent" : "failed",
+    });
+
+    // Update last message
+    await supabase
+      .from("whatsapp_conversations")
+      .update({ last_message: responseText })
+      .eq("id", conversation.id);
+
+    return new Response(JSON.stringify({ status: "ok" }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Webhook error:", error);
+    return new Response(JSON.stringify({ status: "error" }), {
+      status: 200, // Always 200 for Meta
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
