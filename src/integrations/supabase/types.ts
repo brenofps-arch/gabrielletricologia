@@ -14,7 +14,190 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      consultations: {
+        Row: {
+          chief_complaint: string | null
+          consultation_date: string
+          created_at: string
+          diagnosis: string | null
+          id: string
+          observations: string | null
+          patient_id: string
+          physical_exam: string | null
+          prescription_notes: string | null
+          treatment_plan: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chief_complaint?: string | null
+          consultation_date?: string
+          created_at?: string
+          diagnosis?: string | null
+          id?: string
+          observations?: string | null
+          patient_id: string
+          physical_exam?: string | null
+          prescription_notes?: string | null
+          treatment_plan?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chief_complaint?: string | null
+          consultation_date?: string
+          created_at?: string
+          diagnosis?: string | null
+          id?: string
+          observations?: string | null
+          patient_id?: string
+          physical_exam?: string | null
+          prescription_notes?: string | null
+          treatment_plan?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultations_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patients: {
+        Row: {
+          birth_date: string | null
+          condition: string | null
+          created_at: string
+          email: string | null
+          id: string
+          important_notes: string | null
+          name: string
+          phone: string | null
+          sessions_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          birth_date?: string | null
+          condition?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          important_notes?: string | null
+          name: string
+          phone?: string | null
+          sessions_count?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          birth_date?: string | null
+          condition?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          important_notes?: string | null
+          name?: string
+          phone?: string | null
+          sessions_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      prescription_items: {
+        Row: {
+          created_at: string
+          dosage: string | null
+          duration: string | null
+          id: string
+          medication_name: string
+          notes: string | null
+          posology: string | null
+          prescription_id: string
+        }
+        Insert: {
+          created_at?: string
+          dosage?: string | null
+          duration?: string | null
+          id?: string
+          medication_name: string
+          notes?: string | null
+          posology?: string | null
+          prescription_id: string
+        }
+        Update: {
+          created_at?: string
+          dosage?: string | null
+          duration?: string | null
+          id?: string
+          medication_name?: string
+          notes?: string | null
+          posology?: string | null
+          prescription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prescription_items_prescription_id_fkey"
+            columns: ["prescription_id"]
+            isOneToOne: false
+            referencedRelation: "prescriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prescriptions: {
+        Row: {
+          consultation_id: string | null
+          created_at: string
+          doctor_name: string
+          id: string
+          notes: string | null
+          patient_id: string
+          prescribed_at: string
+          user_id: string
+        }
+        Insert: {
+          consultation_id?: string | null
+          created_at?: string
+          doctor_name?: string
+          id?: string
+          notes?: string | null
+          patient_id: string
+          prescribed_at?: string
+          user_id: string
+        }
+        Update: {
+          consultation_id?: string | null
+          created_at?: string
+          doctor_name?: string
+          id?: string
+          notes?: string | null
+          patient_id?: string
+          prescribed_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prescriptions_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "consultations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescriptions_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
