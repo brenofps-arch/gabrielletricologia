@@ -63,7 +63,7 @@ const AppSidebar = () => {
         })}
       </nav>
 
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border space-y-2">
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="w-9 h-9 rounded-full bg-mint/30 flex items-center justify-center">
             <span className="text-sm font-semibold text-secondary-foreground">DM</span>
@@ -73,6 +73,13 @@ const AppSidebar = () => {
             <p className="text-xs text-muted-foreground">Tricologista</p>
           </div>
         </div>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-body font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all w-full"
+        >
+          <LogOut className="w-4 h-4" />
+          Sair
+        </button>
       </div>
     </aside>
   );
