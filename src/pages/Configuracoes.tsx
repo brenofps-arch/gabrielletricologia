@@ -26,7 +26,7 @@ const Configuracoes = () => {
           </div>
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Email</label>
-            <Input defaultValue="dra.maria@tricocare.com" />
+            <Input defaultValue="contato@dragabriellesagrillo.com" />
           </div>
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Telefone</label>

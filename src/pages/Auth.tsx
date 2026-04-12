@@ -79,8 +79,8 @@ const Auth = () => {
             <Stethoscope className="w-7 h-7 text-primary" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-heading">TricoCare</CardTitle>
-            <CardDescription>Gestão Clínica de Tricologia</CardDescription>
+            <CardTitle className="text-2xl font-heading">Clínica Dra. Gabrielle Sagrillo</CardTitle>
+            <CardDescription>Medicina Capilar</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
