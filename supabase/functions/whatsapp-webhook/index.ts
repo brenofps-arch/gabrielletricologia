@@ -147,7 +147,7 @@ serve(async (req) => {
       .map((a) => `${a.appointment_date} ${a.appointment_time}`)
       .join(", ");
 
-    const systemPrompt = `Você é a secretária virtual da Clínica TricoCare, especializada em tricologia (saúde capilar).
+    const systemPrompt = `Você é a secretária virtual da Clínica Dra. Gabrielle Sagrillo, especializada em medicina capilar e tricologia.
 
 REGRAS:
 - Seja simpática, profissional e objetiva
@@ -177,7 +177,7 @@ Se precisar atualizar o estado da conversa, adicione também:
 |||STATE|||{"state":"scheduling","context":{"name":"Maria","complaint":"queda capilar"}}`;
 
     // Call AI
-    let aiResponse = "Olá! 👋 Bem-vinda à Clínica TricoCare. Estou com dificuldades técnicas no momento, mas uma de nossas atendentes entrará em contato em breve!";
+    let aiResponse = "Olá! 👋 Bem-vinda à Clínica Dra. Gabrielle Sagrillo. Estou com dificuldades técnicas no momento, mas uma de nossas atendentes entrará em contato em breve!";
 
     if (LOVABLE_API_KEY) {
       try {
