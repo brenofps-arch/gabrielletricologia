@@ -37,8 +37,8 @@ const AppSidebar = () => {
             <Stethoscope className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="font-heading text-lg font-semibold text-foreground">TricoCare</h1>
-            <p className="text-xs text-muted-foreground font-body">Gestão Clínica</p>
+            <h1 className="font-heading text-lg font-semibold text-foreground">Dra. Gabrielle</h1>
+            <p className="text-xs text-muted-foreground font-body">Medicina Capilar</p>
           </div>
         </div>
       </div>
@@ -66,11 +66,11 @@ const AppSidebar = () => {
       <div className="p-4 border-t border-border space-y-2">
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="w-9 h-9 rounded-full bg-mint/30 flex items-center justify-center">
-            <span className="text-sm font-semibold text-secondary-foreground">DM</span>
+            <span className="text-sm font-semibold text-secondary-foreground">GS</span>
           </div>
           <div>
-            <p className="text-sm font-medium text-foreground font-body">Dra. Maria</p>
-            <p className="text-xs text-muted-foreground">Tricologista</p>
+            <p className="text-sm font-medium text-foreground font-body">Dra. Gabrielle</p>
+            <p className="text-xs text-muted-foreground">CRM 18090-ES</p>
           </div>
         </div>
         <button
