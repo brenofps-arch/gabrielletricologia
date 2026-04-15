@@ -9,7 +9,6 @@ import {
   ClipboardList,
   Settings,
   LogOut,
-  LogOut,
 } from "lucide-react";
 
 const navItems = [
