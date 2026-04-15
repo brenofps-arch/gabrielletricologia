@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, FileDown, AlertTriangle, User, Phone, Mail, Cake } from "lucide-react";
+import { ArrowLeft, Plus, FileDown, AlertTriangle, User, Phone, Mail, Cake, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,7 @@ import ConsultationTimeline from "@/components/patient/ConsultationTimeline";
 import NewConsultationModal from "@/components/patient/NewConsultationModal";
 import PrescriptionModal from "@/components/patient/PrescriptionModal";
 import MedicationHistory from "@/components/patient/MedicationHistory";
+import EditPatientModal from "@/components/patient/EditPatientModal";
 
 const PatientDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +21,7 @@ const PatientDetail = () => {
   const [showPrescription, setShowPrescription] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState("");
+  const [showEdit, setShowEdit] = useState(false);
 
   const { data: patient, isLoading: loadingPatient } = useQuery({
     queryKey: ["patient", id],
@@ -89,6 +91,9 @@ const PatientDetail = () => {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="icon" onClick={() => setShowEdit(true)} title="Editar paciente">
+            <Pencil className="w-4 h-4" />
+          </Button>
           <Button variant="outline" className="gap-1.5" onClick={() => setShowPrescription(true)}>
             <FileDown className="w-4 h-4" /> Gerar Receita
           </Button>
@@ -146,6 +151,7 @@ const PatientDetail = () => {
       {/* Modals */}
       <NewConsultationModal open={showConsultation} onOpenChange={setShowConsultation} patientId={patient.id} onSuccess={refresh} />
       <PrescriptionModal open={showPrescription} onOpenChange={setShowPrescription} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
+      {patient && <EditPatientModal open={showEdit} onOpenChange={setShowEdit} patient={patient} />}
     </div>
   );
 };

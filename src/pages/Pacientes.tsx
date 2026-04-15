@@ -14,7 +14,7 @@ const Pacientes = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ name: "", phone: "", email: "", condition: "" });
+  const [newForm, setNewForm] = useState({ name: "", phone: "", email: "", condition: "", birth_date: "" });
   const [saving, setSaving] = useState(false);
 
   const { data: patients = [], isLoading } = useQuery({
@@ -40,12 +40,13 @@ const Pacientes = () => {
       phone: newForm.phone || null,
       email: newForm.email || null,
       condition: newForm.condition || null,
+      birth_date: newForm.birth_date || null,
     });
 
     if (error) toast.error("Erro ao cadastrar paciente.");
     else {
       toast.success("Paciente cadastrado!");
-      setNewForm({ name: "", phone: "", email: "", condition: "" });
+      setNewForm({ name: "", phone: "", email: "", condition: "", birth_date: "" });
       setShowNew(false);
       queryClient.invalidateQueries({ queryKey: ["patients"] });
     }
@@ -132,9 +133,13 @@ const Pacientes = () => {
               <Label>Email</Label>
               <Input value={newForm.email} onChange={(e) => setNewForm({ ...newForm, email: e.target.value })} type="email" className="mt-1" />
             </div>
-            <div>
+             <div>
               <Label>Condição</Label>
               <Input value={newForm.condition} onChange={(e) => setNewForm({ ...newForm, condition: e.target.value })} placeholder="Ex: Queda Capilar" className="mt-1" />
+            </div>
+            <div>
+              <Label>Data de Nascimento</Label>
+              <Input value={newForm.birth_date} onChange={(e) => setNewForm({ ...newForm, birth_date: e.target.value })} type="date" className="mt-1" />
             </div>
           </div>
           <DialogFooter>
