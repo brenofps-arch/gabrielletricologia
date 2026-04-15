@@ -8,7 +8,7 @@ import {
   MessageCircle,
   ClipboardList,
   Settings,
-  Stethoscope,
+  LogOut,
   LogOut,
 } from "lucide-react";
 
