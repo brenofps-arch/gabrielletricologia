@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import logoBase64 from "@/lib/logoBase64";
 
 interface PrescriptionItem {
   medication_name: string;
@@ -18,62 +19,67 @@ interface PrescriptionPDFData {
 export function generatePrescriptionPDF(data: PrescriptionPDFData) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 20;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 25;
   let y = 20;
 
-  // Brand colors from identity
-  const brandBrown: [number, number, number] = [139, 119, 101]; // warm brown from logo
-  const brandGold: [number, number, number] = [169, 145, 120]; // gold accent
-  const brandLight: [number, number, number] = [235, 228, 220]; // light warm bg
-  const textDark: [number, number, number] = [60, 50, 45];
-  const textMuted: [number, number, number] = [130, 115, 105];
+  // Brand colors
+  const brandRose: [number, number, number] = [193, 154, 132]; // rose gold from logo
+  const brandRoseLight: [number, number, number] = [225, 205, 190];
+  const textDark: [number, number, number] = [55, 45, 40];
+  const textMuted: [number, number, number] = [140, 125, 115];
 
-  // Top accent bar
-  doc.setFillColor(...brandGold);
-  doc.rect(0, 0, pageWidth, 4, "F");
+  // Watermark — centered logo with low opacity
+  const watermarkSize = 120;
+  const wmX = (pageWidth - watermarkSize) / 2;
+  const wmY = (pageHeight - watermarkSize) / 2;
+  // jsPDF doesn't support opacity on images natively, so we use a GState
+  const gState = (doc as any).GState({ opacity: 0.06 });
+  doc.saveGraphicsState();
+  doc.setGState(gState);
+  doc.addImage(logoBase64, "JPEG", wmX, wmY, watermarkSize, watermarkSize);
+  doc.restoreGraphicsState();
 
-  // Logo area - stylized "GS" monogram
-  y = 18;
-  doc.setFontSize(28);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...brandBrown);
-  doc.text("GS", pageWidth / 2, y, { align: "center" });
+  // Thin top accent line
+  doc.setFillColor(...brandRose);
+  doc.rect(0, 0, pageWidth, 2, "F");
 
-  // Doctor name
-  y += 14;
-  doc.setFontSize(18);
+  // Logo small - top left
+  doc.addImage(logoBase64, "JPEG", margin, 12, 18, 18);
+
+  // Header text - next to logo
+  y = 17;
+  doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...textDark);
-  doc.text("Dra. Gabrielle Sagrillo", pageWidth / 2, y, { align: "center" });
+  doc.text("Dra. Gabrielle Sagrillo", margin + 22, y);
 
-  // Specialty
-  y += 8;
-  doc.setFontSize(10);
+  y += 6;
+  doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...textMuted);
-  doc.text("Medicina Capilar | Tricologia", pageWidth / 2, y, { align: "center" });
+  doc.text("Medicina Capilar  |  Tricologia", margin + 22, y);
 
-  // Tagline
-  y += 7;
-  doc.setFontSize(8);
+  y += 5;
+  doc.setFontSize(7);
   doc.setFont("helvetica", "italic");
-  doc.setTextColor(...brandGold);
-  doc.text("A  I D E N T I D A D E  C O M E Ç A  N A  R A I Z", pageWidth / 2, y, { align: "center" });
+  doc.setTextColor(...brandRose);
+  doc.text("A  I D E N T I D A D E  C O M E Ç A  N A  R A I Z", margin + 22, y);
 
-  // Divider line
-  y += 8;
-  doc.setDrawColor(...brandLight);
-  doc.setLineWidth(0.8);
+  // Divider
+  y += 10;
+  doc.setDrawColor(...brandRoseLight);
+  doc.setLineWidth(0.5);
   doc.line(margin, y, pageWidth - margin, y);
 
-  // RECEITUÁRIO title
-  y += 14;
-  doc.setFontSize(14);
+  // RECEITUÁRIO
+  y += 12;
+  doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...brandBrown);
+  doc.setTextColor(...brandRose);
   doc.text("RECEITUÁRIO", pageWidth / 2, y, { align: "center" });
 
-  // Patient info section
+  // Patient & date
   y += 14;
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
@@ -90,23 +96,27 @@ export function generatePrescriptionPDF(data: PrescriptionPDFData) {
 
   // Divider
   y += 8;
-  doc.setDrawColor(...brandLight);
+  doc.setDrawColor(...brandRoseLight);
   doc.line(margin, y, pageWidth - margin, y);
 
-  // Medications
+  // Prescrição
   y += 12;
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...brandBrown);
+  doc.setTextColor(...brandRose);
   doc.text("Prescrição:", margin, y);
 
   y += 10;
   data.items.forEach((item, index) => {
-    if (y > 245) {
+    if (y > 240) {
       doc.addPage();
-      // Top accent on new page
-      doc.setFillColor(...brandGold);
-      doc.rect(0, 0, pageWidth, 4, "F");
+      // Watermark on new page
+      doc.saveGraphicsState();
+      doc.setGState(gState);
+      doc.addImage(logoBase64, "JPEG", wmX, wmY, watermarkSize, watermarkSize);
+      doc.restoreGraphicsState();
+      doc.setFillColor(...brandRose);
+      doc.rect(0, 0, pageWidth, 2, "F");
       y = 20;
     }
 
@@ -142,10 +152,10 @@ export function generatePrescriptionPDF(data: PrescriptionPDFData) {
   }
 
   // Footer
-  const footerY = 265;
-  doc.setDrawColor(...brandGold);
-  doc.setLineWidth(0.5);
-  doc.line(margin + 30, footerY, pageWidth - margin - 30, footerY);
+  const footerY = 262;
+  doc.setDrawColor(...brandRoseLight);
+  doc.setLineWidth(0.3);
+  doc.line(margin + 40, footerY, pageWidth - margin - 40, footerY);
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
@@ -155,12 +165,12 @@ export function generatePrescriptionPDF(data: PrescriptionPDFData) {
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...textMuted);
-  doc.text("CRM 18090-ES | Medicina Capilar", pageWidth / 2, footerY + 12, { align: "center" });
+  doc.text("CRM 18090-ES  |  Medicina Capilar", pageWidth / 2, footerY + 12, { align: "center" });
   doc.text("27 99244-9495", pageWidth / 2, footerY + 17, { align: "center" });
 
-  // Bottom accent bar
-  doc.setFillColor(...brandGold);
-  doc.rect(0, 293, pageWidth, 4, "F");
+  // Bottom accent
+  doc.setFillColor(...brandRose);
+  doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
 
   doc.save(`receita_${data.patientName.replace(/\s+/g, "_")}_${data.date.replace(/\//g, "-")}.pdf`);
 }

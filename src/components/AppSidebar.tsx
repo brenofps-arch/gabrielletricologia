@@ -1,5 +1,6 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import logoGS from "@/assets/logo-gs.jpeg";
 import {
   LayoutDashboard,
   Calendar,
@@ -7,7 +8,6 @@ import {
   MessageCircle,
   ClipboardList,
   Settings,
-  Stethoscope,
   LogOut,
 } from "lucide-react";
 
@@ -33,9 +33,7 @@ const AppSidebar = () => {
     <aside className="fixed left-0 top-0 h-screen w-64 bg-card border-r border-border flex flex-col z-30">
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <Stethoscope className="w-5 h-5 text-primary" />
-          </div>
+          <img src={logoGS} alt="Logo Dra. Gabrielle Sagrillo" className="w-10 h-10 rounded-full object-cover" />
           <div>
             <h1 className="font-heading text-lg font-semibold text-foreground">Dra. Gabrielle</h1>
             <p className="text-xs text-muted-foreground font-body">Medicina Capilar</p>
@@ -65,9 +63,7 @@ const AppSidebar = () => {
 
       <div className="p-4 border-t border-border space-y-2">
         <div className="flex items-center gap-3 px-4 py-3">
-          <div className="w-9 h-9 rounded-full bg-mint/30 flex items-center justify-center">
-            <span className="text-sm font-semibold text-secondary-foreground">GS</span>
-          </div>
+          <img src={logoGS} alt="Logo GS" className="w-9 h-9 rounded-full object-cover" />
           <div>
             <p className="text-sm font-medium text-foreground font-body">Dra. Gabrielle</p>
             <p className="text-xs text-muted-foreground">CRM 18090-ES</p>
