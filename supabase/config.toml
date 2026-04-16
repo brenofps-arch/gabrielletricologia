@@ -1,1 +1,4 @@
 project_id = "byhcxufglzjztiqfcleh"
+
+[functions.google-calendar-callback]
+verify_jwt = false
