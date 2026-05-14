@@ -8,7 +8,7 @@ Deno.serve(async (req) => {
     const state = url.searchParams.get("state"); // user_id
     const error = url.searchParams.get("error");
 
-    const appOrigin = req.headers.get("referer") || "https://id-preview--5ce40450-21cb-448f-9fe7-64610f5c261a.lovable.app";
+    const appOrigin = "https://id-preview--5ce40450-21cb-448f-9fe7-64610f5c261a.lovable.app";
 
     if (error || !code || !state) {
       return Response.redirect(`${appOrigin}/agenda?google=error`, 302);
