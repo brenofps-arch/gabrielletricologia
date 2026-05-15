@@ -52,7 +52,7 @@ const Agenda = () => {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ summary: "", description: "", date: "", startTime: "", endTime: "" });
+  const [form, setForm] = useState({ summary: "", description: "", date: "", startTime: "", endTime: "", phone: "", sendWhatsApp: true });
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -72,6 +72,8 @@ const Agenda = () => {
       date: toDateInput(base),
       startTime,
       endTime: `${endH}:${pad(m)}`,
+      phone: "",
+      sendWhatsApp: true,
     });
     setModalOpen(true);
   };
@@ -86,6 +88,8 @@ const Agenda = () => {
       date: toDateInput(s),
       startTime: toTimeInput(s),
       endTime: toTimeInput(en),
+      phone: "",
+      sendWhatsApp: false,
     });
     setModalOpen(true);
   };
@@ -95,11 +99,21 @@ const Agenda = () => {
       toast({ title: "Preencha todos os campos", variant: "destructive" });
       return;
     }
+    const startDt = new Date(`${form.date}T${form.startTime}:00`);
+    const endDt = new Date(`${form.date}T${form.endTime}:00`);
+    if (endDt <= startDt) {
+      toast({ title: "Horário inválido", description: "O horário de término deve ser depois do início.", variant: "destructive" });
+      return;
+    }
+    if (form.sendWhatsApp && !editingId && !form.phone.trim()) {
+      toast({ title: "Telefone obrigatório", description: "Informe o telefone do paciente para enviar a confirmação.", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const startDateTime = new Date(`${form.date}T${form.startTime}:00`).toISOString();
-      const endDateTime = new Date(`${form.date}T${form.endTime}:00`).toISOString();
+      const startDateTime = startDt.toISOString();
+      const endDateTime = endDt.toISOString();
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-manage${editingId ? `?eventId=${editingId}` : ""}`;
       const res = await fetch(url, {
         method: editingId ? "PATCH" : "POST",
@@ -117,6 +131,27 @@ const Agenda = () => {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro");
       toast({ title: editingId ? "Evento atualizado" : "Evento criado" });
+
+      if (!editingId && form.sendWhatsApp && form.phone.trim()) {
+        try {
+          const dateLabel = startDt.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+          const timeLabel = startDt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+          const message = `Olá! Sua consulta com a Dra. Gabrielle Sagrillo está confirmada para ${dateLabel} às ${timeLabel}. Em caso de imprevisto, por favor avise com antecedência. 💛`;
+          const phoneDigits = form.phone.replace(/\D/g, "");
+          const { error: waErr } = await supabase.functions.invoke("whatsapp-send", {
+            body: { phone: phoneDigits, message },
+          });
+          if (waErr) throw waErr;
+          toast({ title: "Confirmação enviada", description: "Mensagem de WhatsApp enviada ao paciente." });
+        } catch (waError) {
+          toast({
+            title: "Evento criado, mas WhatsApp falhou",
+            description: waError instanceof Error ? waError.message : "Não foi possível enviar a confirmação.",
+            variant: "destructive",
+          });
+        }
+      }
+
       setModalOpen(false);
       fetchEvents();
     } catch (e) {
@@ -487,6 +522,32 @@ const Agenda = () => {
               <Label htmlFor="desc">Observações</Label>
               <Textarea id="desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
             </div>
+            {!editingId && (
+              <div className="space-y-3 rounded-lg border border-border p-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.sendWhatsApp}
+                    onChange={(e) => setForm({ ...form, sendWhatsApp: e.target.checked })}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <span className="text-sm font-body">Enviar confirmação por WhatsApp ao paciente</span>
+                </label>
+                {form.sendWhatsApp && (
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Telefone do paciente *</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder="Ex: 5527999999999 (DDI + DDD + número)"
+                    />
+                    <p className="text-xs text-muted-foreground">Inclua o código do país (55 para Brasil) sem espaços ou símbolos.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter className="gap-2">
             {editingId && (
