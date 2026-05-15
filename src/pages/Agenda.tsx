@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Plus, Clock, Calendar as CalendarIcon, Loader2, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, Calendar as CalendarIcon, Loader2, CheckCircle2, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useSearchParams } from "react-router-dom";
@@ -44,6 +49,100 @@ const Agenda = () => {
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState({ summary: "", description: "", date: "", startTime: "", endTime: "" });
+  const [saving, setSaving] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const toDateInput = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const toTimeInput = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+  const openCreate = (preset?: { date?: Date; hour?: string }) => {
+    const base = preset?.date || currentDate;
+    const startTime = preset?.hour || "09:00";
+    const [h, m] = startTime.split(":").map(Number);
+    const endH = pad((h + 1) % 24);
+    setEditingId(null);
+    setForm({
+      summary: "",
+      description: "",
+      date: toDateInput(base),
+      startTime,
+      endTime: `${endH}:${pad(m)}`,
+    });
+    setModalOpen(true);
+  };
+
+  const openEdit = (e: GEvent) => {
+    const s = new Date(e.start.dateTime || e.start.date!);
+    const en = new Date(e.end.dateTime || e.end.date!);
+    setEditingId(e.id);
+    setForm({
+      summary: e.summary || "",
+      description: e.description || "",
+      date: toDateInput(s),
+      startTime: toTimeInput(s),
+      endTime: toTimeInput(en),
+    });
+    setModalOpen(true);
+  };
+
+  const saveEvent = async () => {
+    if (!form.summary || !form.date || !form.startTime || !form.endTime) {
+      toast({ title: "Preencha todos os campos", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const startDateTime = new Date(`${form.date}T${form.startTime}:00`).toISOString();
+      const endDateTime = new Date(`${form.date}T${form.endTime}:00`).toISOString();
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-manage${editingId ? `?eventId=${editingId}` : ""}`;
+      const res = await fetch(url, {
+        method: editingId ? "PATCH" : "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          summary: form.summary,
+          description: form.description,
+          startDateTime,
+          endDateTime,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro");
+      toast({ title: editingId ? "Evento atualizado" : "Evento criado" });
+      setModalOpen(false);
+      fetchEvents();
+    } catch (e) {
+      toast({ title: "Erro", description: e instanceof Error ? e.message : "Falha", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteEvent = async (id: string) => {
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-manage?eventId=${id}`;
+      const res = await fetch(url, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro");
+      toast({ title: "Evento excluído" });
+      setConfirmDeleteId(null);
+      fetchEvents();
+    } catch (e) {
+      toast({ title: "Erro", description: e instanceof Error ? e.message : "Falha", variant: "destructive" });
+    }
+  };
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -190,6 +289,11 @@ const Agenda = () => {
               <CheckCircle2 className="w-4 h-4" /> Conectada
             </span>
           )}
+          {connected && (
+            <Button onClick={() => openCreate()} className="gap-2">
+              <Plus className="w-4 h-4" /> Novo evento
+            </Button>
+          )}
         </div>
       </div>
 
@@ -239,19 +343,36 @@ const Agenda = () => {
                     <span className="text-xs text-muted-foreground w-14 pt-2 font-body font-medium">{hour}</span>
                     <div className="flex-1 border-t border-border/50 pt-2">
                       {apt ? (
-                        <div className="bg-primary/10 border-l-3 border-primary rounded-lg p-3 cursor-pointer hover:bg-primary/15 transition-colors">
-                          <p className="text-sm font-medium text-foreground">{apt.summary || "Sem título"}</p>
-                          {apt.description && (
-                            <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{apt.description}</p>
-                          )}
-                          <span className="flex items-center gap-1 text-xs text-primary mt-1">
-                            <Clock className="w-3 h-3" />
-                            {apt.start.dateTime
-                              ? new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-                              : "Dia todo"}
-                          </span>
+                        <div className="bg-primary/10 border-l-3 border-primary rounded-lg p-3 group flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(apt)}>
+                            <p className="text-sm font-medium text-foreground">{apt.summary || "Sem título"}</p>
+                            {apt.description && (
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{apt.description}</p>
+                            )}
+                            <span className="flex items-center gap-1 text-xs text-primary mt-1">
+                              <Clock className="w-3 h-3" />
+                              {apt.start.dateTime
+                                ? new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                                : "Dia todo"}
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => openEdit(apt)} className="p-1 hover:bg-primary/20 rounded" title="Editar">
+                              <Pencil className="w-3.5 h-3.5 text-primary" />
+                            </button>
+                            <button onClick={() => setConfirmDeleteId(apt.id)} className="p-1 hover:bg-destructive/20 rounded" title="Excluir">
+                              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                            </button>
+                          </div>
                         </div>
-                      ) : null}
+                      ) : (
+                        <button
+                          onClick={() => openCreate({ hour })}
+                          className="w-full text-left text-xs text-muted-foreground/40 hover:text-primary hover:bg-muted/30 rounded px-2 py-1 transition-colors"
+                        >
+                          + Adicionar
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -336,6 +457,64 @@ const Agenda = () => {
           )}
         </div>
       </div>
+
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingId ? "Editar evento" : "Novo evento"}</DialogTitle>
+            <DialogDescription>Os dados são sincronizados com o Google Calendar.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="summary">Título *</Label>
+              <Input id="summary" value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} placeholder="Consulta - Maria Silva" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="date">Data *</Label>
+              <Input id="date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="start">Início *</Label>
+                <Input id="start" type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end">Fim *</Label>
+                <Input id="end" type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="desc">Observações</Label>
+              <Textarea id="desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            {editingId && (
+              <Button variant="destructive" onClick={() => { setModalOpen(false); setConfirmDeleteId(editingId); }} className="mr-auto gap-2">
+                <Trash2 className="w-4 h-4" /> Excluir
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
+            <Button onClick={saveEvent} disabled={saving}>
+              {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              {editingId ? "Salvar" : "Criar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={(o) => !o && setConfirmDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir evento?</AlertDialogTitle>
+            <AlertDialogDescription>Essa ação não pode ser desfeita. O evento será removido do Google Calendar.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmDeleteId && deleteEvent(confirmDeleteId)}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
