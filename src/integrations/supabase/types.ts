@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointment_reminders: {
+        Row: {
+          appointment_at: string
+          created_at: string
+          error: string | null
+          google_event_id: string | null
+          id: string
+          message: string
+          patient_name: string | null
+          patient_phone: string
+          send_at: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          appointment_at: string
+          created_at?: string
+          error?: string | null
+          google_event_id?: string | null
+          id?: string
+          message: string
+          patient_name?: string | null
+          patient_phone: string
+          send_at: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          appointment_at?: string
+          created_at?: string
+          error?: string | null
+          google_event_id?: string | null
+          id?: string
+          message?: string
+          patient_name?: string | null
+          patient_phone?: string
+          send_at?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       appointments: {
         Row: {
           appointment_date: string
