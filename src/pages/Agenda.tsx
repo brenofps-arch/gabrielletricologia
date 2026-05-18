@@ -136,17 +136,28 @@ const Agenda = () => {
         try {
           const dateLabel = startDt.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
           const timeLabel = startDt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-          const message = `Olá! Sua consulta com a Dra. Gabrielle Sagrillo está confirmada para ${dateLabel} às ${timeLabel}. Em caso de imprevisto, por favor avise com antecedência. 💛`;
+          const message = `Olá! Lembrete da sua consulta amanhã (${dateLabel}) às ${timeLabel} com a Dra. Gabrielle Sagrillo. Em caso de imprevisto, por favor avise com antecedência. 💛`;
           const phoneDigits = form.phone.replace(/\D/g, "");
-          const { error: waErr } = await supabase.functions.invoke("whatsapp-send", {
-            body: { phone: phoneDigits, message },
+          // Agendar envio no dia anterior à consulta às 08:00 (horário local)
+          const sendAt = new Date(`${form.date}T08:00:00`);
+          sendAt.setDate(sendAt.getDate() - 1);
+          const userId = session?.user.id;
+          const { error: waErr } = await supabase.from("appointment_reminders").insert({
+            user_id: userId,
+            google_event_id: editingId || null,
+            patient_phone: phoneDigits,
+            patient_name: form.summary,
+            appointment_at: startDateTime,
+            message,
+            send_at: sendAt.toISOString(),
+            status: "pending",
           });
           if (waErr) throw waErr;
-          toast({ title: "Confirmação enviada", description: "Mensagem de WhatsApp enviada ao paciente." });
+          toast({ title: "Lembrete agendado", description: `WhatsApp será enviado em ${sendAt.toLocaleDateString("pt-BR")} às 08:00.` });
         } catch (waError) {
           toast({
-            title: "Evento criado, mas WhatsApp falhou",
-            description: waError instanceof Error ? waError.message : "Não foi possível enviar a confirmação.",
+            title: "Evento criado, mas lembrete falhou",
+            description: waError instanceof Error ? waError.message : "Não foi possível agendar o lembrete.",
             variant: "destructive",
           });
         }
@@ -531,7 +542,7 @@ const Agenda = () => {
                     onChange={(e) => setForm({ ...form, sendWhatsApp: e.target.checked })}
                     className="w-4 h-4 accent-primary"
                   />
-                  <span className="text-sm font-body">Enviar confirmação por WhatsApp ao paciente</span>
+                  <span className="text-sm font-body">Agendar lembrete por WhatsApp no dia anterior (08h)</span>
                 </label>
                 {form.sendWhatsApp && (
                   <div className="space-y-2">
