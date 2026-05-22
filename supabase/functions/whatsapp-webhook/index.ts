@@ -353,7 +353,7 @@ Se precisar atualizar o estado da conversa, adicione também:
 
     // Send response via WhatsApp
     const sendRes = await fetch(
-      `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_ID}/messages`,
+      `https://graph.facebook.com/v25.0/${WHATSAPP_PHONE_ID}/messages`,
       {
         method: "POST",
         headers: {
