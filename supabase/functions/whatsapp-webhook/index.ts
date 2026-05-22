@@ -6,6 +6,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const DEFAULT_WHATSAPP_OWNER_USER_ID = "922d4be3-68dd-4b84-8fca-8db3b442a44c";
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const getWhatsappOwnerUserId = () => {
+  const configuredOwnerUserId = Deno.env.get("WHATSAPP_OWNER_USER_ID")?.trim();
+
+  if (configuredOwnerUserId && UUID_REGEX.test(configuredOwnerUserId)) {
+    return configuredOwnerUserId;
+  }
+
+  if (configuredOwnerUserId) {
+    console.warn("Invalid WHATSAPP_OWNER_USER_ID; using verified owner user id fallback");
+  }
+
+  return DEFAULT_WHATSAPP_OWNER_USER_ID;
+};
+
 serve(async (req) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
@@ -38,7 +55,7 @@ serve(async (req) => {
     const WHATSAPP_PHONE_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     // The user_id of the doctor who owns this WhatsApp integration
-    const OWNER_USER_ID = Deno.env.get("WHATSAPP_OWNER_USER_ID");
+    const OWNER_USER_ID = getWhatsappOwnerUserId();
 
     if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID || !OWNER_USER_ID) {
       console.error("Missing WhatsApp configuration");
