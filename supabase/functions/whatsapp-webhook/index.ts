@@ -422,6 +422,11 @@ ESTADO ATUAL DA CONVERSA: ${conversation.conversation_state}
 DADOS COLETADOS: ${JSON.stringify(conversation.context_data)}
 HORÁRIOS OCUPADOS (próx. 7 dias): ${busySlots || "Nenhum agendamento ainda"}
 
+📚 APRENDIZADOS DA DRA. GABRIELLE (correções prévias que você DEVE seguir):
+${learningsBlock}
+
+REGRA CRÍTICA SOBRE OS APRENDIZADOS: Sempre que uma situação semelhante a um dos exemplos acima aparecer, use a "Resposta CORRETA" como referência principal. Adapte o tom mas mantenha o conteúdo e a postura ensinada pela Dra.
+
 IMPORTANTE: Se o paciente confirmar um agendamento, responda com o JSON de ação no final da mensagem, separado por |||ACTION|||:
 {"action":"schedule","patient_name":"Nome","phone":"telefone","complaint":"queixa","date":"YYYY-MM-DD","time":"HH:MM"}
 
