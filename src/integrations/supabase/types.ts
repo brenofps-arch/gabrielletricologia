@@ -210,6 +210,39 @@ export type Database = {
         }
         Relationships: []
       }
+      iris_learnings: {
+        Row: {
+          context_note: string | null
+          correct_response: string
+          created_at: string
+          id: string
+          patient_message: string | null
+          updated_at: string
+          user_id: string
+          wrong_response: string | null
+        }
+        Insert: {
+          context_note?: string | null
+          correct_response: string
+          created_at?: string
+          id?: string
+          patient_message?: string | null
+          updated_at?: string
+          user_id: string
+          wrong_response?: string | null
+        }
+        Update: {
+          context_note?: string | null
+          correct_response?: string
+          created_at?: string
+          id?: string
+          patient_message?: string | null
+          updated_at?: string
+          user_id?: string
+          wrong_response?: string | null
+        }
+        Relationships: []
+      }
       patients: {
         Row: {
           birth_date: string | null
