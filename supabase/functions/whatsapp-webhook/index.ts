@@ -9,6 +9,13 @@ const corsHeaders = {
 const DEFAULT_WHATSAPP_OWNER_USER_ID = "922d4be3-68dd-4b84-8fca-8db3b442a44c";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// ⚠️ MODO TESTE: Íris responde EXCLUSIVAMENTE a este número.
+// Quando o WhatsApp Business da clínica estiver liberado, remova/expanda esta lista.
+const ALLOWED_PHONE_NUMBERS = ["5521971183737"];
+
+// Comando que a Dra. envia para iniciar uma correção da última resposta da Íris.
+const CORRECTION_COMMAND = "#corrigir_resposta_iris";
+
 const getWhatsappOwnerUserId = () => {
   const configuredOwnerUserId = Deno.env.get("WHATSAPP_OWNER_USER_ID")?.trim();
 
@@ -89,6 +96,15 @@ serve(async (req) => {
 
     console.log(`Message from ${contactName} (${phoneNumber}): ${messageText}`);
 
+    // 🔒 Trava de segurança: ignora qualquer número que não seja o autorizado para teste.
+    if (!ALLOWED_PHONE_NUMBERS.includes(phoneNumber)) {
+      console.log(`Ignored message from unauthorized number: ${phoneNumber}`);
+      return new Response(JSON.stringify({ status: "ignored" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Find or create conversation
     let { data: conversation } = await supabase
       .from("whatsapp_conversations")
@@ -134,6 +150,115 @@ serve(async (req) => {
       status: "delivered",
     });
 
+    // ============================================================
+    // 🎓 FLUXO DE ENSINO DA ÍRIS (apenas número autorizado)
+    // Passo 1: Dra. envia "#corrigir_resposta_iris" → marca estado awaiting_correction
+    // Passo 2: Próxima mensagem da Dra. vira a "resposta correta" e fica salva
+    //          junto com a última pergunta do paciente e a última resposta errada.
+    // ============================================================
+    const trimmed = messageText.trim();
+
+    if (trimmed.toLowerCase().startsWith(CORRECTION_COMMAND)) {
+      // Pega a última troca (pergunta do paciente + resposta da Íris) antes deste comando
+      const { data: history } = await supabase
+        .from("whatsapp_messages")
+        .select("direction, message_text, created_at")
+        .eq("conversation_id", conversation.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      const ordered = (history || []).reverse();
+      // Última resposta da Íris (antes deste comando)
+      const lastOutbound = [...ordered].reverse().find(
+        (m) => m.direction === "outbound"
+      );
+      // Última pergunta do paciente antes daquela resposta
+      const lastInbound = [...ordered]
+        .reverse()
+        .find(
+          (m) =>
+            m.direction === "inbound" &&
+            m.message_text !== messageText &&
+            (!lastOutbound || new Date(m.created_at) < new Date(lastOutbound.created_at))
+        );
+
+      // Permite enviar a correção na mesma mensagem:
+      // "#corrigir_resposta_iris O correto seria dizer..."
+      const inlineCorrection = trimmed.slice(CORRECTION_COMMAND.length).trim();
+
+      if (inlineCorrection) {
+        await supabase.from("iris_learnings").insert({
+          user_id: OWNER_USER_ID,
+          patient_message: lastInbound?.message_text || null,
+          wrong_response: lastOutbound?.message_text || null,
+          correct_response: inlineCorrection,
+        });
+
+        const confirm = "✅ Anotado! Vou usar essa resposta como referência a partir de agora.";
+        await sendWhatsApp(WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, phoneNumber, confirm, supabase, conversation.id);
+        return new Response(JSON.stringify({ status: "learned" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Sem texto inline → entra em modo "aguardando correção"
+      await supabase
+        .from("whatsapp_conversations")
+        .update({
+          conversation_state: "awaiting_correction",
+          context_data: {
+            ...(conversation.context_data || {}),
+            pending_correction: {
+              patient_message: lastInbound?.message_text || null,
+              wrong_response: lastOutbound?.message_text || null,
+            },
+          },
+        })
+        .eq("id", conversation.id);
+
+      const prompt = "📝 Modo correção ativado. Me envie agora qual seria a resposta ideal e eu aprendo na hora.";
+      await sendWhatsApp(WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, phoneNumber, prompt, supabase, conversation.id);
+      return new Response(JSON.stringify({ status: "awaiting_correction" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Se a conversa está aguardando a correção, esta mensagem é a resposta ideal
+    if (conversation.conversation_state === "awaiting_correction") {
+      const pending = (conversation.context_data as any)?.pending_correction || {};
+      await supabase.from("iris_learnings").insert({
+        user_id: OWNER_USER_ID,
+        patient_message: pending.patient_message || null,
+        wrong_response: pending.wrong_response || null,
+        correct_response: messageText,
+      });
+
+      await supabase
+        .from("whatsapp_conversations")
+        .update({
+          conversation_state: "greeting",
+          context_data: {},
+        })
+        .eq("id", conversation.id);
+
+      const confirm = "✅ Aprendi! Da próxima vez que aparecer uma situação parecida vou usar essa resposta como referência. 💡";
+      await sendWhatsApp(WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, phoneNumber, confirm, supabase, conversation.id);
+      return new Response(JSON.stringify({ status: "learned" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Busca ensinamentos anteriores da Dra. para injetar no contexto da IA
+    const { data: learnings } = await supabase
+      .from("iris_learnings")
+      .select("patient_message, wrong_response, correct_response")
+      .eq("user_id", OWNER_USER_ID)
+      .order("created_at", { ascending: false })
+      .limit(30);
+
     // Get conversation history for AI context
     const { data: recentMessages } = await supabase
       .from("whatsapp_messages")
@@ -163,6 +288,18 @@ serve(async (req) => {
     const busySlots = (existingAppointments || [])
       .map((a) => `${a.appointment_date} ${a.appointment_time}`)
       .join(", ");
+
+    const learningsBlock = (learnings && learnings.length > 0)
+      ? learnings
+          .map((l, i) => {
+            const parts: string[] = [`#${i + 1}`];
+            if (l.patient_message) parts.push(`Paciente disse: "${l.patient_message}"`);
+            if (l.wrong_response) parts.push(`Você respondeu (INCORRETO): "${l.wrong_response}"`);
+            parts.push(`Resposta CORRETA ensinada pela Dra.: "${l.correct_response}"`);
+            return parts.join("\n");
+          })
+          .join("\n\n")
+      : "Nenhuma correção registrada ainda.";
 
     const systemPrompt = `Você é a Íris, secretária virtual da Dra. Gabrielle Sagrillo Pimassoni, médica tricologista (CRM 18090-ES).
 Sua personalidade: profissional mas com leveza, educada e empática. Tom semiformal — acessível mas profissional. Use emojis com moderação (1-2 por mensagem).
