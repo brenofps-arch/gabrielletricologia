@@ -16,6 +16,47 @@ const ALLOWED_PHONE_NUMBERS = ["5521971183737"];
 // Comando que a Dra. envia para iniciar uma correção da última resposta da Íris.
 const CORRECTION_COMMAND = "#corrigir_resposta_iris";
 
+// Helper para enviar mensagem via WhatsApp e salvar no histórico
+async function sendWhatsApp(
+  token: string,
+  phoneId: string,
+  to: string,
+  text: string,
+  supabase: any,
+  conversationId: string,
+) {
+  const res = await fetch(
+    `https://graph.facebook.com/v25.0/${phoneId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "text",
+        text: { body: text },
+      }),
+    },
+  );
+  const data = await res.json().catch(() => ({}));
+  await supabase.from("whatsapp_messages").insert({
+    conversation_id: conversationId,
+    direction: "outbound",
+    message_text: text,
+    message_type: "text",
+    wa_message_id: data?.messages?.[0]?.id,
+    status: res.ok ? "sent" : "failed",
+  });
+  await supabase
+    .from("whatsapp_conversations")
+    .update({ last_message: text })
+    .eq("id", conversationId);
+  return res.ok;
+}
+
 const getWhatsappOwnerUserId = () => {
   const configuredOwnerUserId = Deno.env.get("WHATSAPP_OWNER_USER_ID")?.trim();
 
