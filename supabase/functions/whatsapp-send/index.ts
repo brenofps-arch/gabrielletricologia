@@ -21,37 +21,41 @@ serve(async (req) => {
       });
     }
 
-    const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
-    const WHATSAPP_PHONE_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+    // ── Evolution API config ──────────────────────────────────────────
+    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");       // ex: https://seu-projeto.up.railway.app
+    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");       // API key definida no Railway
+    const EVOLUTION_INSTANCE = Deno.env.get("EVOLUTION_INSTANCE_NAME"); // nome da instância criada (ex: "iris")
 
-    if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID) {
-      return new Response(JSON.stringify({ error: "WhatsApp not configured" }), {
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !EVOLUTION_INSTANCE) {
+      return new Response(JSON.stringify({ error: "Evolution API not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Send via Meta API
+    // Garante que o número está no formato correto (só dígitos)
+    const cleanPhone = phone.replace(/\D/g, "");
+
+    // Envia mensagem via Evolution API
     const res = await fetch(
-      `https://graph.facebook.com/v25.0/${WHATSAPP_PHONE_ID}/messages`,
+      `${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+          "apikey": EVOLUTION_API_KEY,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: phone,
-          type: "text",
-          text: { body: message },
+          number: cleanPhone,
+          text: message,
         }),
       }
     );
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    console.log("Evolution send response:", JSON.stringify(data));
 
-    // Save message if conversation_id provided
+    // Salva mensagem no Supabase se conversation_id fornecido
     if (conversation_id) {
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
       const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -62,7 +66,7 @@ serve(async (req) => {
         direction: "outbound",
         message_text: message,
         message_type: "text",
-        wa_message_id: data?.messages?.[0]?.id,
+        wa_message_id: data?.key?.id || null,
         status: res.ok ? "sent" : "failed",
       });
 
@@ -78,9 +82,12 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("Send error:", error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 });
