@@ -107,7 +107,10 @@ serve(async (req) => {
     const eventType = body?.event;
 
     // Ignora tudo que não for mensagem recebida
-    if (eventType !== "messages.upsert") {
+    // A Evolution API pode enviar como "messages.upsert" ou "MESSAGES_UPSERT"
+    const normalizedEvent = (eventType || "").toLowerCase().replace("_", ".");
+    console.log("Event type raw:", eventType, "normalized:", normalizedEvent);
+    if (normalizedEvent !== "messages.upsert") {
       return new Response(JSON.stringify({ status: "ignored", event: eventType }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
