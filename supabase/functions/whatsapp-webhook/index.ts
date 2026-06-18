@@ -9,67 +9,68 @@ const corsHeaders = {
 const DEFAULT_WHATSAPP_OWNER_USER_ID = "922d4be3-68dd-4b84-8fca-8db3b442a44c";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-// ⚠️ MODO TESTE: Íris responde EXCLUSIVAMENTE a este número.
-// Quando o WhatsApp Business da clínica estiver liberado, remova/expanda esta lista.
+// ⚠️ MODO TESTE: Íris responde EXCLUSIVAMENTE a estes números.
+// Remova ou expanda a lista quando estiver em produção.
 const ALLOWED_PHONE_NUMBERS = ["5521971183737"];
 
 // Comando que a Dra. envia para iniciar uma correção da última resposta da Íris.
 const CORRECTION_COMMAND = "#corrigir_resposta_iris";
 
-// Helper para enviar mensagem via WhatsApp e salvar no histórico
+const getWhatsappOwnerUserId = () => {
+  const configuredOwnerUserId = Deno.env.get("WHATSAPP_OWNER_USER_ID")?.trim();
+  if (configuredOwnerUserId && UUID_REGEX.test(configuredOwnerUserId)) {
+    return configuredOwnerUserId;
+  }
+  if (configuredOwnerUserId) {
+    console.warn("Invalid WHATSAPP_OWNER_USER_ID; using fallback");
+  }
+  return DEFAULT_WHATSAPP_OWNER_USER_ID;
+};
+
+// Helper: envia mensagem via Evolution API e salva no histórico
 async function sendWhatsApp(
-  token: string,
-  phoneId: string,
+  evolutionUrl: string,
+  evolutionKey: string,
+  evolutionInstance: string,
   to: string,
   text: string,
   supabase: any,
   conversationId: string,
 ) {
+  const cleanPhone = to.replace(/\D/g, "");
   const res = await fetch(
-    `https://graph.facebook.com/v25.0/${phoneId}/messages`,
+    `${evolutionUrl}/message/sendText/${evolutionInstance}`,
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        "apikey": evolutionKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to,
-        type: "text",
-        text: { body: text },
+        number: cleanPhone,
+        text,
       }),
-    },
+    }
   );
+
   const data = await res.json().catch(() => ({}));
+
   await supabase.from("whatsapp_messages").insert({
     conversation_id: conversationId,
     direction: "outbound",
     message_text: text,
     message_type: "text",
-    wa_message_id: data?.messages?.[0]?.id,
+    wa_message_id: data?.key?.id || null,
     status: res.ok ? "sent" : "failed",
   });
+
   await supabase
     .from("whatsapp_conversations")
     .update({ last_message: text })
     .eq("id", conversationId);
+
   return res.ok;
 }
-
-const getWhatsappOwnerUserId = () => {
-  const configuredOwnerUserId = Deno.env.get("WHATSAPP_OWNER_USER_ID")?.trim();
-
-  if (configuredOwnerUserId && UUID_REGEX.test(configuredOwnerUserId)) {
-    return configuredOwnerUserId;
-  }
-
-  if (configuredOwnerUserId) {
-    console.warn("Invalid WHATSAPP_OWNER_USER_ID; using verified owner user id fallback");
-  }
-
-  return DEFAULT_WHATSAPP_OWNER_USER_ID;
-};
 
 serve(async (req) => {
   // Handle CORS
@@ -77,67 +78,83 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Meta webhook verification (GET request)
-  if (req.method === "GET") {
-    const url = new URL(req.url);
-    const mode = url.searchParams.get("hub.mode");
-    const token = url.searchParams.get("hub.verify_token");
-    const challenge = url.searchParams.get("hub.challenge");
-
-    const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
-    if (mode === "subscribe" && token === VERIFY_TOKEN) {
-      console.log("Webhook verified successfully");
-      return new Response(challenge, { status: 200 });
-    }
-    return new Response("Forbidden", { status: 403 });
-  }
-
-  // Process incoming messages (POST)
+  // ── Evolution API envia tudo via POST ────────────────────────────────
+  // Não existe GET de verificação como na Meta — basta aceitar o POST.
   try {
     const body = await req.json();
     console.log("Webhook received:", JSON.stringify(body));
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
-    const WHATSAPP_PHONE_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL")!;
+    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY")!;
+    const EVOLUTION_INSTANCE = Deno.env.get("EVOLUTION_INSTANCE_NAME")!;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    // The user_id of the doctor who owns this WhatsApp integration
     const OWNER_USER_ID = getWhatsappOwnerUserId();
 
-    if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID || !OWNER_USER_ID) {
-      console.error("Missing WhatsApp configuration");
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !EVOLUTION_INSTANCE) {
+      console.error("Missing Evolution API configuration");
       return new Response(JSON.stringify({ error: "Missing configuration" }), {
-        status: 200, // Always return 200 to Meta to avoid retries
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Extract message data from Meta webhook format
-    const entry = body?.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const value = changes?.value;
+    // ── Parse do payload da Evolution API ───────────────────────────────
+    // A Evolution API envia eventos de vários tipos. Filtramos apenas mensagens recebidas.
+    const eventType = body?.event;
 
-    if (!value?.messages?.[0]) {
-      // Status update or other non-message event
-      return new Response(JSON.stringify({ status: "ok" }), {
+    // Ignora tudo que não for mensagem recebida
+    if (eventType !== "messages.upsert") {
+      return new Response(JSON.stringify({ status: "ignored", event: eventType }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const message = value.messages[0];
-    const contact = value.contacts?.[0];
-    const phoneNumber = message.from;
-    const contactName = contact?.profile?.name || "Desconhecido";
-    const messageText = message.text?.body || "";
-    const waMessageId = message.id;
+    const messageData = body?.data;
+
+    // Ignora mensagens enviadas pelo próprio bot (fromMe = true)
+    if (!messageData || messageData?.key?.fromMe === true) {
+      return new Response(JSON.stringify({ status: "ignored_outbound" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Extrai número e texto
+    // O número vem no formato "5521999999999@s.whatsapp.net" — removemos o sufixo
+    const rawPhone = messageData?.key?.remoteJid || "";
+    const phoneNumber = rawPhone.replace("@s.whatsapp.net", "").replace(/\D/g, "");
+
+    const contactName =
+      messageData?.pushName ||
+      body?.data?.pushName ||
+      "Desconhecido";
+
+    // Suporta texto simples e mensagem de botão/lista
+    const messageText =
+      messageData?.message?.conversation ||
+      messageData?.message?.extendedTextMessage?.text ||
+      messageData?.message?.buttonsResponseMessage?.selectedDisplayText ||
+      messageData?.message?.listResponseMessage?.title ||
+      "";
+
+    const waMessageId = messageData?.key?.id || "";
+
+    if (!phoneNumber || !messageText) {
+      console.log("Empty phone or message, skipping");
+      return new Response(JSON.stringify({ status: "empty" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     console.log(`Message from ${contactName} (${phoneNumber}): ${messageText}`);
 
-    // 🔒 Trava de segurança: ignora qualquer número que não seja o autorizado para teste.
+    // 🔒 Trava de segurança: ignora números não autorizados no modo teste.
     if (!ALLOWED_PHONE_NUMBERS.includes(phoneNumber)) {
       console.log(`Ignored message from unauthorized number: ${phoneNumber}`);
       return new Response(JSON.stringify({ status: "ignored" }), {
@@ -146,7 +163,7 @@ serve(async (req) => {
       });
     }
 
-    // Find or create conversation
+    // ── Find or create conversation ──────────────────────────────────────
     let { data: conversation } = await supabase
       .from("whatsapp_conversations")
       .select("*")
@@ -181,7 +198,7 @@ serve(async (req) => {
         .eq("id", conversation.id);
     }
 
-    // Save inbound message
+    // Salva mensagem recebida
     await supabase.from("whatsapp_messages").insert({
       conversation_id: conversation.id,
       direction: "inbound",
@@ -192,15 +209,11 @@ serve(async (req) => {
     });
 
     // ============================================================
-    // 🎓 FLUXO DE ENSINO DA ÍRIS (apenas número autorizado)
-    // Passo 1: Dra. envia "#corrigir_resposta_iris" → marca estado awaiting_correction
-    // Passo 2: Próxima mensagem da Dra. vira a "resposta correta" e fica salva
-    //          junto com a última pergunta do paciente e a última resposta errada.
+    // 🎓 FLUXO DE ENSINO DA ÍRIS
     // ============================================================
     const trimmed = messageText.trim();
 
     if (trimmed.toLowerCase().startsWith(CORRECTION_COMMAND)) {
-      // Pega a última troca (pergunta do paciente + resposta da Íris) antes deste comando
       const { data: history } = await supabase
         .from("whatsapp_messages")
         .select("direction, message_text, created_at")
@@ -209,11 +222,7 @@ serve(async (req) => {
         .limit(10);
 
       const ordered = (history || []).reverse();
-      // Última resposta da Íris (antes deste comando)
-      const lastOutbound = [...ordered].reverse().find(
-        (m) => m.direction === "outbound"
-      );
-      // Última pergunta do paciente antes daquela resposta
+      const lastOutbound = [...ordered].reverse().find((m) => m.direction === "outbound");
       const lastInbound = [...ordered]
         .reverse()
         .find(
@@ -223,8 +232,6 @@ serve(async (req) => {
             (!lastOutbound || new Date(m.created_at) < new Date(lastOutbound.created_at))
         );
 
-      // Permite enviar a correção na mesma mensagem:
-      // "#corrigir_resposta_iris O correto seria dizer..."
       const inlineCorrection = trimmed.slice(CORRECTION_COMMAND.length).trim();
 
       if (inlineCorrection) {
@@ -236,14 +243,13 @@ serve(async (req) => {
         });
 
         const confirm = "✅ Anotado! Vou usar essa resposta como referência a partir de agora.";
-        await sendWhatsApp(WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, phoneNumber, confirm, supabase, conversation.id);
+        await sendWhatsApp(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, phoneNumber, confirm, supabase, conversation.id);
         return new Response(JSON.stringify({ status: "learned" }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Sem texto inline → entra em modo "aguardando correção"
       await supabase
         .from("whatsapp_conversations")
         .update({
@@ -259,14 +265,13 @@ serve(async (req) => {
         .eq("id", conversation.id);
 
       const prompt = "📝 Modo correção ativado. Me envie agora qual seria a resposta ideal e eu aprendo na hora.";
-      await sendWhatsApp(WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, phoneNumber, prompt, supabase, conversation.id);
+      await sendWhatsApp(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, phoneNumber, prompt, supabase, conversation.id);
       return new Response(JSON.stringify({ status: "awaiting_correction" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Se a conversa está aguardando a correção, esta mensagem é a resposta ideal
     if (conversation.conversation_state === "awaiting_correction") {
       const pending = (conversation.context_data as any)?.pending_correction || {};
       await supabase.from("iris_learnings").insert({
@@ -278,21 +283,18 @@ serve(async (req) => {
 
       await supabase
         .from("whatsapp_conversations")
-        .update({
-          conversation_state: "greeting",
-          context_data: {},
-        })
+        .update({ conversation_state: "greeting", context_data: {} })
         .eq("id", conversation.id);
 
       const confirm = "✅ Aprendi! Da próxima vez que aparecer uma situação parecida vou usar essa resposta como referência. 💡";
-      await sendWhatsApp(WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, phoneNumber, confirm, supabase, conversation.id);
+      await sendWhatsApp(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, phoneNumber, confirm, supabase, conversation.id);
       return new Response(JSON.stringify({ status: "learned" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Busca ensinamentos anteriores da Dra. para injetar no contexto da IA
+    // ── Busca contexto para a IA ─────────────────────────────────────────
     const { data: learnings } = await supabase
       .from("iris_learnings")
       .select("patient_message, wrong_response, correct_response")
@@ -300,7 +302,6 @@ serve(async (req) => {
       .order("created_at", { ascending: false })
       .limit(30);
 
-    // Get conversation history for AI context
     const { data: recentMessages } = await supabase
       .from("whatsapp_messages")
       .select("direction, message_text, created_at")
@@ -308,7 +309,6 @@ serve(async (req) => {
       .order("created_at", { ascending: true })
       .limit(20);
 
-    // Get available appointment slots (next 7 days)
     const today = new Date();
     const nextWeek = new Date(today);
     nextWeek.setDate(nextWeek.getDate() + 7);
@@ -321,26 +321,22 @@ serve(async (req) => {
       .lte("appointment_date", nextWeek.toISOString().split("T")[0])
       .neq("status", "cancelled");
 
-    // Build AI prompt
-    const conversationHistory = (recentMessages || [])
-      .map((m) => `${m.direction === "inbound" ? "Paciente" : "Secretária"}: ${m.message_text}`)
-      .join("\n");
-
     const busySlots = (existingAppointments || [])
-      .map((a) => `${a.appointment_date} ${a.appointment_time}`)
+      .map((a: any) => `${a.appointment_date} ${a.appointment_time}`)
       .join(", ");
 
-    const learningsBlock = (learnings && learnings.length > 0)
-      ? learnings
-          .map((l, i) => {
-            const parts: string[] = [`#${i + 1}`];
-            if (l.patient_message) parts.push(`Paciente disse: "${l.patient_message}"`);
-            if (l.wrong_response) parts.push(`Você respondeu (INCORRETO): "${l.wrong_response}"`);
-            parts.push(`Resposta CORRETA ensinada pela Dra.: "${l.correct_response}"`);
-            return parts.join("\n");
-          })
-          .join("\n\n")
-      : "Nenhuma correção registrada ainda.";
+    const learningsBlock =
+      learnings && learnings.length > 0
+        ? learnings
+            .map((l: any, i: number) => {
+              const parts: string[] = [`#${i + 1}`];
+              if (l.patient_message) parts.push(`Paciente disse: "${l.patient_message}"`);
+              if (l.wrong_response) parts.push(`Você respondeu (INCORRETO): "${l.wrong_response}"`);
+              parts.push(`Resposta CORRETA ensinada pela Dra.: "${l.correct_response}"`);
+              return parts.join("\n");
+            })
+            .join("\n\n")
+        : "Nenhuma correção registrada ainda.";
 
     const systemPrompt = `Você é a Íris, secretária virtual da Dra. Gabrielle Sagrillo Pimassoni, médica tricologista (CRM 18090-ES).
 Sua personalidade: profissional mas com leveza, educada e empática. Tom semiformal — acessível mas profissional. Use emojis com moderação (1-2 por mensagem).
@@ -436,21 +432,19 @@ Perfeito! ✅ Sua consulta está agendada para dia 15/04 às 10h com a Dra. Gabr
 Se precisar atualizar o estado da conversa, adicione também:
 |||STATE|||{"state":"scheduling","context":{"name":"Maria","complaint":"queda capilar"}}`;
 
-    // Call AI
+    // ── Chama a IA ───────────────────────────────────────────────────────
     let aiResponse = "Olá! 👋 Bem-vinda à Clínica Dra. Gabrielle Sagrillo. Estou com dificuldades técnicas no momento, mas uma de nossas atendentes entrará em contato em breve!";
 
     if (LOVABLE_API_KEY) {
       try {
         const aiMessages = [
           { role: "system", content: systemPrompt },
-          ...((recentMessages || []).map((m) => ({
+          ...((recentMessages || []).map((m: any) => ({
             role: m.direction === "inbound" ? "user" : "assistant",
             content: m.message_text,
           }))),
         ];
 
-        // Don't duplicate the last user message since it's already in history
-        // but if history is empty or last message is not from user, add it
         if (aiMessages.length <= 1 || aiMessages[aiMessages.length - 1].role !== "user") {
           aiMessages.push({ role: "user", content: messageText });
         }
@@ -478,7 +472,7 @@ Se precisar atualizar o estado da conversa, adicione também:
       }
     }
 
-    // Parse actions from AI response
+    // ── Parse de ações da resposta da IA ────────────────────────────────
     let responseText = aiResponse;
     let actionData = null;
     let stateData = null;
@@ -503,7 +497,7 @@ Se precisar atualizar o estado da conversa, adicione também:
       }
     }
 
-    // Execute action if present
+    // Executa agendamento se necessário
     if (actionData?.action === "schedule") {
       const { error: aptError } = await supabase.from("appointments").insert({
         user_id: OWNER_USER_ID,
@@ -523,7 +517,7 @@ Se precisar atualizar o estado da conversa, adicione também:
       }
     }
 
-    // Update conversation state
+    // Atualiza estado da conversa
     if (stateData) {
       await supabase
         .from("whatsapp_conversations")
@@ -534,42 +528,16 @@ Se precisar atualizar o estado da conversa, adicione também:
         .eq("id", conversation.id);
     }
 
-    // Send response via WhatsApp
-    const sendRes = await fetch(
-      `https://graph.facebook.com/v25.0/${WHATSAPP_PHONE_ID}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: phoneNumber,
-          type: "text",
-          text: { body: responseText },
-        }),
-      }
+    // Envia resposta via Evolution API
+    await sendWhatsApp(
+      EVOLUTION_API_URL,
+      EVOLUTION_API_KEY,
+      EVOLUTION_INSTANCE,
+      phoneNumber,
+      responseText,
+      supabase,
+      conversation.id,
     );
-
-    const sendData = await sendRes.json();
-    console.log("WhatsApp send response:", JSON.stringify(sendData));
-
-    // Save outbound message
-    await supabase.from("whatsapp_messages").insert({
-      conversation_id: conversation.id,
-      direction: "outbound",
-      message_text: responseText,
-      message_type: "text",
-      wa_message_id: sendData?.messages?.[0]?.id,
-      status: sendRes.ok ? "sent" : "failed",
-    });
-
-    // Update last message
-    await supabase
-      .from("whatsapp_conversations")
-      .update({ last_message: responseText })
-      .eq("id", conversation.id);
 
     return new Response(JSON.stringify({ status: "ok" }), {
       status: 200,
@@ -578,7 +546,7 @@ Se precisar atualizar o estado da conversa, adicione também:
   } catch (error) {
     console.error("Webhook error:", error);
     return new Response(JSON.stringify({ status: "error" }), {
-      status: 200, // Always 200 for Meta
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
