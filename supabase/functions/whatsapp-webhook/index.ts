@@ -11,10 +11,11 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 
 // ⚠️ MODO TESTE: Íris responde EXCLUSIVAMENTE a estes números.
 // Remova ou expanda a lista quando estiver em produção.
-const ALLOWED_PHONE_NUMBERS = ["5521971183737"];
+const ALLOWED_PHONE_NUMBERS = ["5521971183737", "5527997244164", "5527997626808"];
 
 // Comando que a Dra. envia para iniciar uma correção da última resposta da Íris.
 const CORRECTION_COMMAND = "#corrigir_resposta_iris";
+const CANCEL_COMMAND = "#cancelar";
 
 const getWhatsappOwnerUserId = () => {
   const configuredOwnerUserId = Deno.env.get("WHATSAPP_OWNER_USER_ID")?.trim();
@@ -276,6 +277,21 @@ serve(async (req) => {
     }
 
     if (conversation.conversation_state === "awaiting_correction") {
+      // Comando de cancelamento
+      if (trimmed.toLowerCase() === CANCEL_COMMAND) {
+        await supabase
+          .from("whatsapp_conversations")
+          .update({ conversation_state: "greeting", context_data: {} })
+          .eq("id", conversation.id);
+
+        const cancel = "❌ Modo correção cancelado. Voltando ao modo normal!";
+        await sendWhatsApp(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, phoneNumber, cancel, supabase, conversation.id);
+        return new Response(JSON.stringify({ status: "cancelled" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const pending = (conversation.context_data as any)?.pending_correction || {};
       await supabase.from("iris_learnings").insert({
         user_id: OWNER_USER_ID,
