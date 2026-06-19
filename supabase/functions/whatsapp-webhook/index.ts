@@ -73,6 +73,29 @@ async function sendWhatsApp(
   return res.ok;
 }
 
+// Helper: nomes dos dias da semana e formatação de data em pt-BR
+const weekdayNames = [
+  "domingo",
+  "segunda-feira",
+  "terça-feira",
+  "quarta-feira",
+  "quinta-feira",
+  "sexta-feira",
+  "sábado",
+];
+
+const formatDateBR = (d: Date) =>
+  d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+// Retorna a data da próxima ocorrência de um dia da semana (0=domingo...6=sábado),
+// sempre pulando para a semana seguinte (nunca retorna "hoje").
+function nextWeekdayDate(from: Date, weekday: number) {
+  const d = new Date(from);
+  const diff = (weekday - d.getDay() + 7) % 7 || 7;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
 serve(async (req) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
@@ -344,6 +367,13 @@ serve(async (req) => {
       .map((a: any) => `${a.appointment_date} ${a.appointment_time}`)
       .join(", ");
 
+    // Datas reais dos próximos dias de atendimento, para a IA nunca falar
+    // "quarta-feira" sem dizer qual data é.
+    const todayLabel = `${weekdayNames[today.getDay()]}, ${formatDateBR(today)}`;
+    const nextWed = formatDateBR(nextWeekdayDate(today, 3));
+    const nextThu = formatDateBR(nextWeekdayDate(today, 4));
+    const nextFri = formatDateBR(nextWeekdayDate(today, 5));
+
     const learningsBlock =
       learnings && learnings.length > 0
         ? learnings
@@ -359,6 +389,8 @@ serve(async (req) => {
 
     const systemPrompt = `Você é a Íris, secretária virtual da Dra. Gabrielle Sagrillo Pimassoni, médica tricologista (CRM 18090-ES).
 Sua personalidade: profissional mas com leveza, educada e empática. Tom semiformal — acessível mas profissional. Use emojis com moderação (1-2 por mensagem).
+
+FORMATAÇÃO: Nunca use markdown (sem asteriscos *, sem underline _, sem negrito ou itálico). Escreva sempre em texto corrido simples, como uma mensagem comum de WhatsApp.
 
 NUNCA use a palavra "curar" nem prometa resultados. Responda em português do Brasil.
 
@@ -433,6 +465,10 @@ FLUXO DE AGENDAMENTO:
 5. Informe valor (R$350 primeira consulta) e orientações pré-consulta
 6. Confirme o agendamento
 
+DATA DE HOJE: ${todayLabel}
+PRÓXIMAS DATAS: quarta-feira ${nextWed} (Vila Velha), quinta-feira ${nextThu}, sexta-feira ${nextFri} (Cariacica)
+REGRA DE DATAS: sempre que citar um dia da semana, inclua a data no formato DD/MM usando as datas acima. Nunca diga só "quarta-feira" sem a data.
+
 ESTADO ATUAL DA CONVERSA: ${conversation.conversation_state}
 DADOS COLETADOS: ${JSON.stringify(conversation.context_data)}
 HORÁRIOS OCUPADOS (próx. 7 dias): ${busySlots || "Nenhum agendamento ainda"}
@@ -492,25 +528,41 @@ Se precisar atualizar o estado da conversa, adicione também:
     }
 
     // ── Parse de ações da resposta da IA ────────────────────────────────
+    // Corrigido: antes, o texto só era "limpo" quando havia |||ACTION|||.
+    // Se a IA mandasse só |||STATE||| (sem ação), o marcador vazava pro paciente.
+    // Agora tratamos os dois marcadores de forma independente, em qualquer ordem.
     let responseText = aiResponse;
     let actionData = null;
     let stateData = null;
 
-    if (aiResponse.includes("|||ACTION|||")) {
-      const parts = aiResponse.split("|||ACTION|||");
-      responseText = parts[0].trim();
+    const actionIndex = aiResponse.indexOf("|||ACTION|||");
+    const stateIndex = aiResponse.indexOf("|||STATE|||");
+    const markerIndexes = [actionIndex, stateIndex].filter((i) => i !== -1);
+
+    // Texto visível ao paciente = tudo ANTES do primeiro marcador, seja ele qual for
+    if (markerIndexes.length > 0) {
+      responseText = aiResponse.slice(0, Math.min(...markerIndexes)).trim();
+    }
+
+    if (actionIndex !== -1) {
+      let actionPart = aiResponse.slice(actionIndex + "|||ACTION|||".length);
+      if (stateIndex !== -1 && stateIndex > actionIndex) {
+        actionPart = actionPart.split("|||STATE|||")[0];
+      }
       try {
-        const actionPart = parts[1].split("|||STATE|||")[0].trim();
-        actionData = JSON.parse(actionPart);
+        actionData = JSON.parse(actionPart.trim());
       } catch (e) {
         console.error("Failed to parse action:", e);
       }
     }
 
-    if (aiResponse.includes("|||STATE|||")) {
-      const parts = aiResponse.split("|||STATE|||");
+    if (stateIndex !== -1) {
+      let statePart = aiResponse.slice(stateIndex + "|||STATE|||".length);
+      if (actionIndex !== -1 && actionIndex > stateIndex) {
+        statePart = statePart.split("|||ACTION|||")[0];
+      }
       try {
-        stateData = JSON.parse(parts[parts.length - 1].trim());
+        stateData = JSON.parse(statePart.trim());
       } catch (e) {
         console.error("Failed to parse state:", e);
       }
