@@ -329,7 +329,7 @@ serve(async (req) => {
       .select("direction, message_text, created_at")
       .eq("conversation_id", conversation.id)
       .order("created_at", { ascending: true })
-      .limit(20);
+      .limit(6);
 
     const today = new Date();
     const nextWeek = new Date(today);
@@ -432,8 +432,11 @@ FLUXO DE AGENDAMENTO:
 4. SEMPRE pergunte qual local o paciente prefere ANTES de sugerir qualquer horário:
    - Vila Velha (Praia da Costa) — atendimento às quartas-feiras
    - Vitória (Mata da Praia) — atendimento às quintas-feiras
-   NÃO assuma o local baseado em mensagens anteriores. SEMPRE pergunte.
-5. Só após o paciente escolher o local, apresente os horários disponíveis daquele local
+   - Cariacica (Villaggio Campo Grande) — atendimento às sextas-feiras (quinzenal)
+   ⚠️ REGRA CRÍTICA DE LOCAL: NUNCA assuma o local com base em mensagens anteriores.
+   O local SÓ está confirmado se o paciente o mencionou EXPLICITAMENTE na mensagem atual.
+   Se o paciente fizer qualquer pergunta nova sobre local ou horário, trate como nova escolha.
+5. Só após o paciente confirmar o local NA MENSAGEM ATUAL, apresente os horários disponíveis
 6. Informe o valor (R$350 primeira consulta) APENAS se o paciente perguntar
 7. Confirme o agendamento e envie as orientações pré-consulta
 
