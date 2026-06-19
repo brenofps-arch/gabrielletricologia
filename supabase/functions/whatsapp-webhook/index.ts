@@ -14,7 +14,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 const ALLOWED_PHONE_NUMBERS = ["5521971183737", "5527997244164", "5527997626808"];
 
 // Números autorizados a usar comandos de ensino (#corrigir_resposta_iris, #cancelar)
-const ADMIN_PHONE_NUMBERS = ["5527997244164", "5527997626808"];
+const ADMIN_PHONE_NUMBERS = ["5521971183737", "5527997244164", "5527997626808"];
 
 // Comando que a Dra. envia para iniciar uma correção da última resposta da Íris.
 const CORRECTION_COMMAND = "#corrigir_resposta_iris";
@@ -280,22 +280,33 @@ serve(async (req) => {
     }
 
     if (conversation.conversation_state === "awaiting_correction") {
-      // Comando de cancelamento
-      if (trimmed.toLowerCase() === CANCEL_COMMAND) {
+      const isAdmin = ADMIN_PHONE_NUMBERS.includes(phoneNumber);
+
+      // Se não for admin, ignora o estado de correção e trata como conversa normal
+      if (!isAdmin) {
         await supabase
           .from("whatsapp_conversations")
           .update({ conversation_state: "greeting", context_data: {} })
           .eq("id", conversation.id);
+        conversation.conversation_state = "greeting";
+        // Continua para o fluxo normal da IA abaixo
+      } else {
+        // Comando de cancelamento (só para admins)
+        if (trimmed.toLowerCase() === CANCEL_COMMAND) {
+          await supabase
+            .from("whatsapp_conversations")
+            .update({ conversation_state: "greeting", context_data: {} })
+            .eq("id", conversation.id);
 
-        const cancel = "❌ Modo correção cancelado. Voltando ao modo normal!";
-        await sendWhatsApp(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, phoneNumber, cancel, supabase, conversation.id);
-        return new Response(JSON.stringify({ status: "cancelled" }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+          const cancel = "❌ Modo correção cancelado. Voltando ao modo normal!";
+          await sendWhatsApp(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, phoneNumber, cancel, supabase, conversation.id);
+          return new Response(JSON.stringify({ status: "cancelled" }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
 
-      const pending = (conversation.context_data as any)?.pending_correction || {};
+        const pending = (conversation.context_data as any)?.pending_correction || {};
       await supabase.from("iris_learnings").insert({
         user_id: OWNER_USER_ID,
         patient_message: pending.patient_message || null,
@@ -303,17 +314,18 @@ serve(async (req) => {
         correct_response: messageText,
       });
 
-      await supabase
-        .from("whatsapp_conversations")
-        .update({ conversation_state: "greeting", context_data: {} })
-        .eq("id", conversation.id);
+        await supabase
+          .from("whatsapp_conversations")
+          .update({ conversation_state: "greeting", context_data: {} })
+          .eq("id", conversation.id);
 
-      const confirm = "✅ Aprendi! Da próxima vez que aparecer uma situação parecida vou usar essa resposta como referência. 💡";
-      await sendWhatsApp(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, phoneNumber, confirm, supabase, conversation.id);
-      return new Response(JSON.stringify({ status: "learned" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+        const confirm = "✅ Aprendi! Da próxima vez que aparecer uma situação parecida vou usar essa resposta como referência. 💡";
+        await sendWhatsApp(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, phoneNumber, confirm, supabase, conversation.id);
+        return new Response(JSON.stringify({ status: "learned" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } // fim do bloco else (admin)
     }
 
     // ── Busca contexto para a IA ─────────────────────────────────────────
