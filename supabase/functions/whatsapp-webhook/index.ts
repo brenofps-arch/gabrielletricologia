@@ -96,8 +96,44 @@ function nextWeekdayDate(from: Date, weekday: number) {
   return d;
 }
 
+// ── Agenda fixa dos consultórios ──────────────────────────────────────
+// Fonte da verdade dos horários: o código calcula, a IA só recebe a lista pronta.
+const APPOINTMENT_DURATION_MIN = 60;
+const APPOINTMENT_GAP_MIN = 5;
+
+type ClinicWindow = {
+  weekday: number; // 0=domingo...6=sábado
+  location: string;
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+};
+
+const CLINIC_SCHEDULE: ClinicWindow[] = [
+  { weekday: 3, location: "Vila Velha", startHour: 7, startMinute: 0, endHour: 11, endMinute: 0 },
+  { weekday: 4, location: "Vitória", startHour: 8, startMinute: 0, endHour: 12, endMinute: 0 },
+];
+
+// Gera todos os horários de início possíveis dentro da janela, respeitando
+// duração da consulta + intervalo entre consultas.
+function generateAllSlots(window: ClinicWindow): string[] {
+  const slots: string[] = [];
+  let cursorMin = window.startHour * 60 + window.startMinute;
+  const endMin = window.endHour * 60 + window.endMinute;
+
+  while (cursorMin + APPOINTMENT_DURATION_MIN <= endMin) {
+    const hh = String(Math.floor(cursorMin / 60)).padStart(2, "0");
+    const mm = String(cursorMin % 60).padStart(2, "0");
+    slots.push(`${hh}:${mm}`);
+    cursorMin += APPOINTMENT_DURATION_MIN + APPOINTMENT_GAP_MIN;
+  }
+  return slots;
+}
+
 serve(async (req) => {
   // Handle CORS
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -367,11 +403,31 @@ serve(async (req) => {
       .map((a: any) => `${a.appointment_date} ${a.appointment_time}`)
       .join(", ");
 
+    // Mapa de horários já ocupados por data (HH:MM), pra descontar dos slots gerados
+    const busyByDate: Record<string, Set<string>> = {};
+    (existingAppointments || []).forEach((a: any) => {
+      const timeHHMM = String(a.appointment_time).slice(0, 5);
+      if (!busyByDate[a.appointment_date]) busyByDate[a.appointment_date] = new Set();
+      busyByDate[a.appointment_date].add(timeHHMM);
+    });
+
     // Datas reais dos próximos dias de atendimento, para a IA nunca falar
     // "quarta-feira" sem dizer qual data é.
     const todayLabel = `${weekdayNames[today.getDay()]}, ${formatDateBR(today)}`;
-    const nextWed = formatDateBR(nextWeekdayDate(today, 3));
-    const nextThu = formatDateBR(nextWeekdayDate(today, 4));
+    const nextWedDate = nextWeekdayDate(today, 3);
+    const nextThuDate = nextWeekdayDate(today, 4);
+    const nextWed = formatDateBR(nextWedDate);
+    const nextThu = formatDateBR(nextThuDate);
+
+    // Horários livres reais, calculados pelo código (a IA nunca deve inventar horário).
+    function freeSlotsFor(date: Date, window: ClinicWindow): string[] {
+      const dateStr = date.toISOString().split("T")[0];
+      const busy = busyByDate[dateStr] || new Set();
+      return generateAllSlots(window).filter((t) => !busy.has(t));
+    }
+
+    const wedSlots = freeSlotsFor(nextWedDate, CLINIC_SCHEDULE[0]);
+    const thuSlots = freeSlotsFor(nextThuDate, CLINIC_SCHEDULE[1]);
 
     const learningsBlock =
       learnings && learnings.length > 0
@@ -393,9 +449,13 @@ FORMATAÇÃO: Nunca use markdown (sem asteriscos *, sem underline _, sem negrito
 
 NUNCA use a palavra "curar" nem prometa resultados. Responda em português do Brasil.
 
-REGRA DE ATENÇÃO: Leia a mensagem do paciente com atenção total antes de responder. Se ele perguntar algo (ex: outros locais de atendimento, outros horários, dúvidas sobre procedimento), responda exatamente essa pergunta primeiro — não ignore a pergunta nem continue empurrando o horário/local que já estava sendo negociado antes de respondê-la. Depois de responder, retome o agendamento perguntando se ele quer prosseguir com alguma das opções.
+REGRA DE ATENÇÃO: Leia a mensagem do paciente com atenção total antes de responder. Se ele perguntar algo (ex: "atende em outros locais?", "tem outro horário?", dúvidas sobre procedimento), responda EXATAMENTE essa pergunta primeiro — mesmo que isso signifique abandonar a oferta que estava em andamento. Exemplo: se perguntarem "atende em outros locais?", liste TODOS os consultórios (Vila Velha e Vitória) com o dia de cada um, e pergunte se ele quer tentar algum dos dois. Nunca repita a oferta anterior como se a pergunta não tivesse sido feita.
 
-REGRA SOBRE VALORES: Só informe o valor da consulta (R$ 350,00) quando o paciente perguntar diretamente sobre preço/valor, ou no momento em que ele já escolheu um horário e você está fechando o agendamento. Não inclua o valor em respostas sobre locais, horários disponíveis ou outras dúvidas gerais.
+REGRA DE NEGAÇÃO: Se o paciente recusar a oferta atual (frases como "não quero", "nenhum dos dois", "não pode", "não consigo nesse dia/local"), NÃO repita a mesma pergunta com as mesmas opções. Reconheça a recusa e pergunte o que ele prefere: o outro consultório/dia disponível, ou aguardar uma nova vaga. Nunca insista no mesmo horário ou local que o paciente já recusou.
+
+REGRA SOBRE VALORES: NUNCA mencione o valor da consulta (R$ 350,00) a menos que o paciente pergunte diretamente sobre preço/valor, ou que ele já tenha escolhido um horário e você esteja fechando o agendamento. Não inclua o valor ao listar consultórios, horários disponíveis ou responder outras dúvidas gerais.
+
+REGRA DE HORÁRIOS: NUNCA invente, calcule ou arredonde horários sozinho. Use exclusivamente os horários exatos da lista "HORÁRIOS DISPONÍVEIS" abaixo. Se não houver mais horários livres em um dia, diga isso e ofereça o outro dia/consultório.
 
 SOBRE A DRA. GABRIELLE:
 - Especialidade: Tricologia médica (medicina capilar)
@@ -468,6 +528,10 @@ FLUXO DE AGENDAMENTO:
 
 DATA DE HOJE: ${todayLabel}
 PRÓXIMAS DATAS: quarta-feira ${nextWed} (Vila Velha), quinta-feira ${nextThu} (Vitória)
+
+HORÁRIOS DISPONÍVEIS (únicos válidos — não use nenhum horário fora desta lista):
+- Quarta-feira, ${nextWed} (Vila Velha): ${wedSlots.length > 0 ? wedSlots.join(", ") : "sem horários livres no momento"}
+- Quinta-feira, ${nextThu} (Vitória): ${thuSlots.length > 0 ? thuSlots.join(", ") : "sem horários livres no momento"}
 REGRA DE DATAS: sempre que citar um dia da semana, inclua a data no formato DD/MM usando as datas acima. Nunca diga só "quarta-feira" sem a data.
 
 ESTADO ATUAL DA CONVERSA: ${conversation.conversation_state}
