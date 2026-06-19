@@ -500,6 +500,7 @@ Se precisar atualizar o estado da conversa, adicione também:
     let actionData = null;
     let stateData = null;
 
+    // Remove os marcadores internos do texto antes de enviar ao paciente
     if (aiResponse.includes("|||ACTION|||")) {
       const parts = aiResponse.split("|||ACTION|||");
       responseText = parts[0].trim();
@@ -513,12 +514,24 @@ Se precisar atualizar o estado da conversa, adicione também:
 
     if (aiResponse.includes("|||STATE|||")) {
       const parts = aiResponse.split("|||STATE|||");
+      // Remove o STATE do texto visível ao paciente
+      responseText = parts[0].replace("|||ACTION|||", "").trim();
+      // Remove possível ACTION orphan do responseText
+      if (responseText.includes("|||ACTION|||")) {
+        responseText = responseText.split("|||ACTION|||")[0].trim();
+      }
       try {
         stateData = JSON.parse(parts[parts.length - 1].trim());
       } catch (e) {
         console.error("Failed to parse state:", e);
       }
     }
+
+    // Garantia final: remove qualquer marcador residual
+    responseText = responseText
+      .replace(/\|\|\|ACTION\|\|\|.*$/s, "")
+      .replace(/\|\|\|STATE\|\|\|.*$/s, "")
+      .trim();
 
     // Executa agendamento se necessário
     if (actionData?.action === "schedule") {
