@@ -372,7 +372,6 @@ serve(async (req) => {
     const todayLabel = `${weekdayNames[today.getDay()]}, ${formatDateBR(today)}`;
     const nextWed = formatDateBR(nextWeekdayDate(today, 3));
     const nextThu = formatDateBR(nextWeekdayDate(today, 4));
-    const nextFri = formatDateBR(nextWeekdayDate(today, 5));
 
     const learningsBlock =
       learnings && learnings.length > 0
@@ -394,6 +393,10 @@ FORMATAÇÃO: Nunca use markdown (sem asteriscos *, sem underline _, sem negrito
 
 NUNCA use a palavra "curar" nem prometa resultados. Responda em português do Brasil.
 
+REGRA DE ATENÇÃO: Leia a mensagem do paciente com atenção total antes de responder. Se ele perguntar algo (ex: outros locais de atendimento, outros horários, dúvidas sobre procedimento), responda exatamente essa pergunta primeiro — não ignore a pergunta nem continue empurrando o horário/local que já estava sendo negociado antes de respondê-la. Depois de responder, retome o agendamento perguntando se ele quer prosseguir com alguma das opções.
+
+REGRA SOBRE VALORES: Só informe o valor da consulta (R$ 350,00) quando o paciente perguntar diretamente sobre preço/valor, ou no momento em que ele já escolheu um horário e você está fechando o agendamento. Não inclua o valor em respostas sobre locais, horários disponíveis ou outras dúvidas gerais.
+
 SOBRE A DRA. GABRIELLE:
 - Especialidade: Tricologia médica (medicina capilar)
 - Membro da Sociedade Brasileira de Tricologia, Associação Brasileira de Tricologia e Sociedade Brasileira de Medicina e Transplante Capilar
@@ -401,16 +404,14 @@ SOBRE A DRA. GABRIELLE:
 - Diferenciais: consulta humanizada, escuta ativa, educação ativa do paciente, abordagem realista e ética
 - Atende todas as idades, gestantes, particular (sem convênio)
 
-CONSULTÓRIOS (Instituto Health):
-1. Vila Velha — Rua Inácio Higino, 1050 – Shopping Praia da Costa, torre leste, sala 101 (entrada pela rua ou ao lado do cinema)
-2. Cariacica — Rua Waldemar Siepiersk, 200 – Villaggio Campo Grande Comercial, loja 44 (térreo, corredor da BR)
-3. Vitória — Av. Adalberto Simão Nader, 387, sala 208, Ed. Concorde, Mata da Praia
+CONSULTÓRIOS:
+1. Vila Velha — Rua Professor Telmo de Souza Torres, nº255, Sala 114, Edifício MQ Business, Praia da Costa
+2. Vitória — Av. Adalberto Simão Nader, nº387, sala 208, Edifício Concorde, Mata da Praia
 
 AGENDA:
-- Quarta: manhã 07h-10h (Vila Velha) + tarde 14h-18h (Cariacica, quinzenal)
-- Quinta: manhã 08h-13h
-- Sexta: tarde 14h-18h (Cariacica)
-- NÃO atende segunda, terça, sábado, domingo, feriados
+- Quarta: 07h-11h (Vila Velha)
+- Quinta: 08h-12h (Vitória)
+- NÃO atende segunda, terça, sexta, sábado, domingo, feriados
 - NÃO permite agendamento para o mesmo dia
 - Duração da consulta: 1 hora | Intervalo entre consultas: 5 minutos
 
@@ -466,7 +467,7 @@ FLUXO DE AGENDAMENTO:
 6. Confirme o agendamento
 
 DATA DE HOJE: ${todayLabel}
-PRÓXIMAS DATAS: quarta-feira ${nextWed} (Vila Velha), quinta-feira ${nextThu}, sexta-feira ${nextFri} (Cariacica)
+PRÓXIMAS DATAS: quarta-feira ${nextWed} (Vila Velha), quinta-feira ${nextThu} (Vitória)
 REGRA DE DATAS: sempre que citar um dia da semana, inclua a data no formato DD/MM usando as datas acima. Nunca diga só "quarta-feira" sem a data.
 
 ESTADO ATUAL DA CONVERSA: ${conversation.conversation_state}
