@@ -13,6 +13,9 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 // Remova ou expanda a lista quando estiver em produção.
 const ALLOWED_PHONE_NUMBERS = ["5521971183737", "5527997244164", "5527997626808"];
 
+// Números autorizados a usar comandos de ensino (#corrigir_resposta_iris, #cancelar)
+const ADMIN_PHONE_NUMBERS = ["5527997244164", "5527997626808"];
+
 // Comando que a Dra. envia para iniciar uma correção da última resposta da Íris.
 const CORRECTION_COMMAND = "#corrigir_resposta_iris";
 const CANCEL_COMMAND = "#cancelar";
@@ -73,67 +76,8 @@ async function sendWhatsApp(
   return res.ok;
 }
 
-// Helper: nomes dos dias da semana e formatação de data em pt-BR
-const weekdayNames = [
-  "domingo",
-  "segunda-feira",
-  "terça-feira",
-  "quarta-feira",
-  "quinta-feira",
-  "sexta-feira",
-  "sábado",
-];
-
-const formatDateBR = (d: Date) =>
-  d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-
-// Retorna a data da próxima ocorrência de um dia da semana (0=domingo...6=sábado),
-// sempre pulando para a semana seguinte (nunca retorna "hoje").
-function nextWeekdayDate(from: Date, weekday: number) {
-  const d = new Date(from);
-  const diff = (weekday - d.getDay() + 7) % 7 || 7;
-  d.setDate(d.getDate() + diff);
-  return d;
-}
-
-// ── Agenda fixa dos consultórios ──────────────────────────────────────
-// Fonte da verdade dos horários: o código calcula, a IA só recebe a lista pronta.
-const APPOINTMENT_DURATION_MIN = 60;
-const APPOINTMENT_GAP_MIN = 5;
-
-type ClinicWindow = {
-  weekday: number; // 0=domingo...6=sábado
-  location: string;
-  startHour: number;
-  startMinute: number;
-  endHour: number;
-  endMinute: number;
-};
-
-const CLINIC_SCHEDULE: ClinicWindow[] = [
-  { weekday: 3, location: "Vila Velha", startHour: 7, startMinute: 0, endHour: 11, endMinute: 0 },
-  { weekday: 4, location: "Vitória", startHour: 8, startMinute: 0, endHour: 12, endMinute: 0 },
-];
-
-// Gera todos os horários de início possíveis dentro da janela, respeitando
-// duração da consulta + intervalo entre consultas.
-function generateAllSlots(window: ClinicWindow): string[] {
-  const slots: string[] = [];
-  let cursorMin = window.startHour * 60 + window.startMinute;
-  const endMin = window.endHour * 60 + window.endMinute;
-
-  while (cursorMin + APPOINTMENT_DURATION_MIN <= endMin) {
-    const hh = String(Math.floor(cursorMin / 60)).padStart(2, "0");
-    const mm = String(cursorMin % 60).padStart(2, "0");
-    slots.push(`${hh}:${mm}`);
-    cursorMin += APPOINTMENT_DURATION_MIN + APPOINTMENT_GAP_MIN;
-  }
-  return slots;
-}
-
 serve(async (req) => {
   // Handle CORS
-
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -403,32 +347,6 @@ serve(async (req) => {
       .map((a: any) => `${a.appointment_date} ${a.appointment_time}`)
       .join(", ");
 
-    // Mapa de horários já ocupados por data (HH:MM), pra descontar dos slots gerados
-    const busyByDate: Record<string, Set<string>> = {};
-    (existingAppointments || []).forEach((a: any) => {
-      const timeHHMM = String(a.appointment_time).slice(0, 5);
-      if (!busyByDate[a.appointment_date]) busyByDate[a.appointment_date] = new Set();
-      busyByDate[a.appointment_date].add(timeHHMM);
-    });
-
-    // Datas reais dos próximos dias de atendimento, para a IA nunca falar
-    // "quarta-feira" sem dizer qual data é.
-    const todayLabel = `${weekdayNames[today.getDay()]}, ${formatDateBR(today)}`;
-    const nextWedDate = nextWeekdayDate(today, 3);
-    const nextThuDate = nextWeekdayDate(today, 4);
-    const nextWed = formatDateBR(nextWedDate);
-    const nextThu = formatDateBR(nextThuDate);
-
-    // Horários livres reais, calculados pelo código (a IA nunca deve inventar horário).
-    function freeSlotsFor(date: Date, window: ClinicWindow): string[] {
-      const dateStr = date.toISOString().split("T")[0];
-      const busy = busyByDate[dateStr] || new Set();
-      return generateAllSlots(window).filter((t) => !busy.has(t));
-    }
-
-    const wedSlots = freeSlotsFor(nextWedDate, CLINIC_SCHEDULE[0]);
-    const thuSlots = freeSlotsFor(nextThuDate, CLINIC_SCHEDULE[1]);
-
     const learningsBlock =
       learnings && learnings.length > 0
         ? learnings
@@ -442,20 +360,10 @@ serve(async (req) => {
             .join("\n\n")
         : "Nenhuma correção registrada ainda.";
 
-    const systemPrompt = `Você é a Íris, secretária virtual da Dra. Gabrielle Sagrillo Pimassoni, médica tricologista (CRM 18090-ES).
-Sua personalidade: profissional mas com leveza, educada e empática. Tom semiformal — acessível mas profissional. Use emojis com moderação (1-2 por mensagem).
-
-FORMATAÇÃO: Nunca use markdown (sem asteriscos *, sem underline _, sem negrito ou itálico). Escreva sempre em texto corrido simples, como uma mensagem comum de WhatsApp.
+    const systemPrompt = `Você é a Íris, secretária da Dra. Gabrielle Sagrillo, médica tricologista (CRM 18090-ES).
+Sua personalidade: profissional mas com leveza, educada e empática. Tom semiformal — acessível mas profissional. Use emojis com moderação, somente em primeiros contatos e marcações de consulta.
 
 NUNCA use a palavra "curar" nem prometa resultados. Responda em português do Brasil.
-
-REGRA DE ATENÇÃO: Leia a mensagem do paciente com atenção total antes de responder. Se ele perguntar algo (ex: "atende em outros locais?", "tem outro horário?", dúvidas sobre procedimento), responda EXATAMENTE essa pergunta primeiro — mesmo que isso signifique abandonar a oferta que estava em andamento. Exemplo: se perguntarem "atende em outros locais?", liste TODOS os consultórios (Vila Velha e Vitória) com o dia de cada um, e pergunte se ele quer tentar algum dos dois. Nunca repita a oferta anterior como se a pergunta não tivesse sido feita.
-
-REGRA DE NEGAÇÃO: Se o paciente recusar a oferta atual (frases como "não quero", "nenhum dos dois", "não pode", "não consigo nesse dia/local"), NÃO repita a mesma pergunta com as mesmas opções. Reconheça a recusa e pergunte o que ele prefere: o outro consultório/dia disponível, ou aguardar uma nova vaga. Nunca insista no mesmo horário ou local que o paciente já recusou.
-
-REGRA SOBRE VALORES: NUNCA mencione o valor da consulta (R$ 350,00) a menos que o paciente pergunte diretamente sobre preço/valor, ou que ele já tenha escolhido um horário e você esteja fechando o agendamento. Não inclua o valor ao listar consultórios, horários disponíveis ou responder outras dúvidas gerais.
-
-REGRA DE HORÁRIOS: NUNCA invente, calcule ou arredonde horários sozinho. Use exclusivamente os horários exatos da lista "HORÁRIOS DISPONÍVEIS" abaixo. Se não houver mais horários livres em um dia, diga isso e ofereça o outro dia/consultório.
 
 SOBRE A DRA. GABRIELLE:
 - Especialidade: Tricologia médica (medicina capilar)
@@ -464,20 +372,20 @@ SOBRE A DRA. GABRIELLE:
 - Diferenciais: consulta humanizada, escuta ativa, educação ativa do paciente, abordagem realista e ética
 - Atende todas as idades, gestantes, particular (sem convênio)
 
-CONSULTÓRIOS:
-1. Vila Velha — Rua Professor Telmo de Souza Torres, nº255, Sala 114, Edifício MQ Business, Praia da Costa
-2. Vitória — Av. Adalberto Simão Nader, nº387, sala 208, Edifício Concorde, Mata da Praia
+CONSULTÓRIOS (Instituto Health):
+1. Vila Velha — Rua Professor Telmo de Souza Torres, n°255, Sala 114, Ed MQ Business, Praia da Costa, Vila Velha.
+2. Vitória — Avenida Adalberto Simão Nader, n° 387, sala 208, Edifício Concorde, Mata da Praia.
 
 AGENDA:
-- Quarta: 07h-11h (Vila Velha)
-- Quinta: 08h-12h (Vitória)
+- Quarta: manhã 07h-11h (Vila Velha)
+- Quinta: manhã 08h-12h
 - NÃO atende segunda, terça, sexta, sábado, domingo, feriados
 - NÃO permite agendamento para o mesmo dia
-- Duração da consulta: 1 hora | Intervalo entre consultas: 5 minutos
+- Duração da consulta: 1 hora
 
 VALORES:
 - Primeira consulta (avaliação): R$ 350,00
-- Retorno: R$ 350,00 (1º retorno gratuito em até 45 dias se não fechar protocolo; se fechar protocolo, só paga a primeira consulta)
+- Retorno: R$ 350,00 (1º retorno gratuito em até 45 dias se não fechar protocolo)
 - Pagamento: após a consulta. Aceita dinheiro, Pix, débito, crédito (até 6x com juros). Sem desconto à vista. Fornece nota fiscal para reembolso
 
 PROCEDIMENTOS (valores informados somente em consulta, pois dependem da avaliação individual):
@@ -505,7 +413,6 @@ PREPARAÇÃO PARA CONSULTA (sempre informar ao agendar):
 - Lista de medicamentos em uso
 - Não usar tintura no cabelo até 15 dias antes
 - Lavar o cabelo 1 dia antes da consulta
-- Se possível, vir acompanhado(a) de pessoa que ajuda em grandes decisões
 
 POLÍTICAS:
 - Cancelamento: até 24h antes sem custo (exceto casos extremos)
@@ -522,17 +429,13 @@ FLUXO DE AGENDAMENTO:
 1. Cumprimente, se apresente como Íris e pergunte como pode ajudar
 2. Se quer agendar: colete nome completo e queixa principal
 3. Verifique se a condição é do escopo (couro cabeludo/fios)
-4. Sugira horários disponíveis (informando qual consultório)
-5. Informe valor (R$350 primeira consulta) e orientações pré-consulta
-6. Confirme o agendamento
-
-DATA DE HOJE: ${todayLabel}
-PRÓXIMAS DATAS: quarta-feira ${nextWed} (Vila Velha), quinta-feira ${nextThu} (Vitória)
-
-HORÁRIOS DISPONÍVEIS (únicos válidos — não use nenhum horário fora desta lista):
-- Quarta-feira, ${nextWed} (Vila Velha): ${wedSlots.length > 0 ? wedSlots.join(", ") : "sem horários livres no momento"}
-- Quinta-feira, ${nextThu} (Vitória): ${thuSlots.length > 0 ? thuSlots.join(", ") : "sem horários livres no momento"}
-REGRA DE DATAS: sempre que citar um dia da semana, inclua a data no formato DD/MM usando as datas acima. Nunca diga só "quarta-feira" sem a data.
+4. SEMPRE pergunte qual local o paciente prefere ANTES de sugerir qualquer horário:
+   - Vila Velha (Praia da Costa) — atendimento às quartas-feiras
+   - Vitória (Mata da Praia) — atendimento às quintas-feiras
+   NÃO assuma o local baseado em mensagens anteriores. SEMPRE pergunte.
+5. Só após o paciente escolher o local, apresente os horários disponíveis daquele local
+6. Informe o valor (R$350 primeira consulta) APENAS se o paciente perguntar
+7. Confirme o agendamento e envie as orientações pré-consulta
 
 ESTADO ATUAL DA CONVERSA: ${conversation.conversation_state}
 DADOS COLETADOS: ${JSON.stringify(conversation.context_data)}
@@ -593,41 +496,25 @@ Se precisar atualizar o estado da conversa, adicione também:
     }
 
     // ── Parse de ações da resposta da IA ────────────────────────────────
-    // Corrigido: antes, o texto só era "limpo" quando havia |||ACTION|||.
-    // Se a IA mandasse só |||STATE||| (sem ação), o marcador vazava pro paciente.
-    // Agora tratamos os dois marcadores de forma independente, em qualquer ordem.
     let responseText = aiResponse;
     let actionData = null;
     let stateData = null;
 
-    const actionIndex = aiResponse.indexOf("|||ACTION|||");
-    const stateIndex = aiResponse.indexOf("|||STATE|||");
-    const markerIndexes = [actionIndex, stateIndex].filter((i) => i !== -1);
-
-    // Texto visível ao paciente = tudo ANTES do primeiro marcador, seja ele qual for
-    if (markerIndexes.length > 0) {
-      responseText = aiResponse.slice(0, Math.min(...markerIndexes)).trim();
-    }
-
-    if (actionIndex !== -1) {
-      let actionPart = aiResponse.slice(actionIndex + "|||ACTION|||".length);
-      if (stateIndex !== -1 && stateIndex > actionIndex) {
-        actionPart = actionPart.split("|||STATE|||")[0];
-      }
+    if (aiResponse.includes("|||ACTION|||")) {
+      const parts = aiResponse.split("|||ACTION|||");
+      responseText = parts[0].trim();
       try {
-        actionData = JSON.parse(actionPart.trim());
+        const actionPart = parts[1].split("|||STATE|||")[0].trim();
+        actionData = JSON.parse(actionPart);
       } catch (e) {
         console.error("Failed to parse action:", e);
       }
     }
 
-    if (stateIndex !== -1) {
-      let statePart = aiResponse.slice(stateIndex + "|||STATE|||".length);
-      if (actionIndex !== -1 && actionIndex > stateIndex) {
-        statePart = statePart.split("|||ACTION|||")[0];
-      }
+    if (aiResponse.includes("|||STATE|||")) {
+      const parts = aiResponse.split("|||STATE|||");
       try {
-        stateData = JSON.parse(statePart.trim());
+        stateData = JSON.parse(parts[parts.length - 1].trim());
       } catch (e) {
         console.error("Failed to parse state:", e);
       }
