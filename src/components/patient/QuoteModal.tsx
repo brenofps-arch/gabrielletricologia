@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Plus, Trash2, FileDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -14,6 +13,7 @@ interface QuoteItem {
   procedure_name: string;
   description: string;
   value: string;
+  installments: string;
 }
 
 const SUGGESTIONS = [
@@ -35,20 +35,19 @@ interface Props {
   onSuccess: () => void;
 }
 
-const DEFAULT_PAYMENT = "Dinheiro, Pix, débito ou crédito em até 6x com juros";
+const DEFAULT_PAYMENT = "Dinheiro, Pix, débito ou crédito";
 
 const QuoteModal = ({ open, onOpenChange, patientId, patientName, onSuccess }: Props) => {
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState("");
   const [validityDays, setValidityDays] = useState(30);
   const [paymentMethods, setPaymentMethods] = useState(DEFAULT_PAYMENT);
-  const [imageUseClause, setImageUseClause] = useState(true);
   const [items, setItems] = useState<QuoteItem[]>([
-    { procedure_name: "", description: "", value: "" },
+    { procedure_name: "", description: "", value: "", installments: "" },
   ]);
 
   const addItem = () =>
-    setItems([...items, { procedure_name: "", description: "", value: "" }]);
+    setItems([...items, { procedure_name: "", description: "", value: "", installments: "" }]);
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: keyof QuoteItem, value: string) => {
     const updated = [...items];
@@ -74,7 +73,7 @@ const QuoteModal = ({ open, onOpenChange, patientId, patientName, onSuccess }: P
       user_id: user.id,
       validity_days: validityDays,
       payment_methods: paymentMethods,
-      image_use_clause: imageUseClause,
+      image_use_clause: false,
       notes,
       total_value: total,
     }).select().single();
@@ -104,20 +103,19 @@ const QuoteModal = ({ open, onOpenChange, patientId, patientName, onSuccess }: P
           date: new Date().toLocaleDateString("pt-BR"),
           validityDays,
           paymentMethods,
-          imageUseClause,
           items: validItems.map((i) => ({
             procedure_name: i.procedure_name,
             description: i.description || null,
             value: parseFloat(i.value) || 0,
+            installments: i.installments || null,
           })),
           notes,
         });
       }
-      setItems([{ procedure_name: "", description: "", value: "" }]);
+      setItems([{ procedure_name: "", description: "", value: "", installments: "" }]);
       setNotes("");
       setValidityDays(30);
       setPaymentMethods(DEFAULT_PAYMENT);
-      setImageUseClause(true);
       onSuccess();
       onOpenChange(false);
     }
@@ -141,7 +139,7 @@ const QuoteModal = ({ open, onOpenChange, patientId, patientName, onSuccess }: P
                 onClick={() => {
                   const emptyIdx = items.findIndex((i) => !i.procedure_name.trim());
                   if (emptyIdx >= 0) updateItem(emptyIdx, "procedure_name", s);
-                  else setItems([...items, { procedure_name: s, description: "", value: "" }]);
+                  else setItems([...items, { procedure_name: s, description: "", value: "", installments: "" }]);
                 }}
                 className="text-xs px-2.5 py-1 rounded-full bg-accent text-accent-foreground hover:bg-primary/10 transition-colors"
               >
@@ -173,16 +171,25 @@ const QuoteModal = ({ open, onOpenChange, patientId, patientName, onSuccess }: P
                 onChange={(e) => updateItem(i, "description", e.target.value)}
                 rows={2}
               />
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">R$</span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0,00"
-                  value={item.value}
-                  onChange={(e) => updateItem(i, "value", e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">R$</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0,00"
+                    value={item.value}
+                    onChange={(e) => updateItem(i, "value", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Input
+                    placeholder="Parcelamento (ex: até 6x com juros)"
+                    value={item.installments}
+                    onChange={(e) => updateItem(i, "installments", e.target.value)}
+                  />
+                </div>
               </div>
             </div>
           ))}
@@ -199,23 +206,15 @@ const QuoteModal = ({ open, onOpenChange, patientId, patientName, onSuccess }: P
           </span>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div>
-            <Label className="font-body text-sm">Validade (dias)</Label>
-            <Input
-              type="number"
-              min="1"
-              value={validityDays}
-              onChange={(e) => setValidityDays(parseInt(e.target.value) || 30)}
-              className="mt-1"
-            />
-          </div>
-          <div className="flex items-end pb-1">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <Switch checked={imageUseClause} onCheckedChange={setImageUseClause} />
-              <span className="text-sm font-body">Incluir termo de uso de imagem</span>
-            </label>
-          </div>
+        <div className="mt-4">
+          <Label className="font-body text-sm">Validade (dias)</Label>
+          <Input
+            type="number"
+            min="1"
+            value={validityDays}
+            onChange={(e) => setValidityDays(parseInt(e.target.value) || 30)}
+            className="mt-1 w-32"
+          />
         </div>
 
         <div className="mt-3">
