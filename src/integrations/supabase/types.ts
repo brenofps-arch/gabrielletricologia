@@ -374,6 +374,88 @@ export type Database = {
           },
         ]
       }
+      quote_items: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          procedure_name: string
+          quote_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          procedure_name: string
+          quote_id: string
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          procedure_name?: string
+          quote_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          created_at: string
+          id: string
+          image_use_clause: boolean
+          notes: string | null
+          patient_id: string
+          payment_methods: string | null
+          total_value: number
+          updated_at: string
+          user_id: string
+          validity_days: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_use_clause?: boolean
+          notes?: string | null
+          patient_id: string
+          payment_methods?: string | null
+          total_value?: number
+          updated_at?: string
+          user_id: string
+          validity_days?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_use_clause?: boolean
+          notes?: string | null
+          patient_id?: string
+          payment_methods?: string | null
+          total_value?: number
+          updated_at?: string
+          user_id?: string
+          validity_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_conversations: {
         Row: {
           contact_name: string | null
