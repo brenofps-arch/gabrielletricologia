@@ -73,7 +73,6 @@ const QuoteHistory = ({ patientId, patientName }: Props) => {
                 date: new Date(q.created_at).toLocaleDateString("pt-BR"),
                 validityDays: q.validity_days,
                 paymentMethods: q.payment_methods || "",
-                imageUseClause: q.image_use_clause,
                 items: q.quote_items.map((it: any) => ({
                   procedure_name: it.procedure_name,
                   description: it.description,
