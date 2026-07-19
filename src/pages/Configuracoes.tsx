@@ -1,8 +1,51 @@
-import { Settings, User, Bell, Shield } from "lucide-react";
+import { useEffect, useState } from "react";
+import { User, Bell } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const Configuracoes = () => {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: "", specialty: "", email: "", phone: "" });
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+      setUserId(user.id);
+      const { data } = await supabase
+        .from("profiles")
+        .select("name, specialty, email, phone")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (data) {
+        setForm({
+          name: data.name || "",
+          specialty: data.specialty || "",
+          email: data.email || user.email || "",
+          phone: data.phone || "",
+        });
+      } else {
+        setForm((f) => ({ ...f, email: user.email || "" }));
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const handleSave = async () => {
+    if (!userId) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("profiles")
+      .upsert({ id: userId, ...form }, { onConflict: "id" });
+    setSaving(false);
+    if (error) toast.error("Erro ao salvar perfil.");
+    else toast.success("Perfil atualizado!");
+  };
+
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl">
       <div>
@@ -18,22 +61,24 @@ const Configuracoes = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Nome</label>
-            <Input defaultValue="Dra. Maria Santos" />
+            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} disabled={loading} />
           </div>
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Especialidade</label>
-            <Input defaultValue="Tricologia" />
+            <Input value={form.specialty} onChange={(e) => setForm({ ...form, specialty: e.target.value })} disabled={loading} />
           </div>
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Email</label>
-            <Input defaultValue="contato@dragabriellesagrillo.com" />
+            <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} disabled={loading} type="email" />
           </div>
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Telefone</label>
-            <Input defaultValue="(11) 99999-0000" />
+            <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} disabled={loading} />
           </div>
         </div>
-        <Button className="bg-primary text-primary-foreground hover:bg-primary/90">Salvar Alterações</Button>
+        <Button onClick={handleSave} disabled={saving || loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
+          {saving ? "Salvando..." : "Salvar Alterações"}
+        </Button>
       </div>
 
       <div className="bg-card rounded-xl border border-border p-6 space-y-4">
