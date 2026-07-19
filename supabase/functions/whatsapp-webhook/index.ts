@@ -9,14 +9,9 @@ const corsHeaders = {
 const DEFAULT_WHATSAPP_OWNER_USER_ID = "922d4be3-68dd-4b84-8fca-8db3b442a44c";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-// ⚠️ MODO TESTE: Íris responde EXCLUSIVAMENTE a estes números.
-// Remova ou expanda a lista quando estiver em produção.
 const ALLOWED_PHONE_NUMBERS = ["5521971183737", "5527997244164", "5527997626808"];
-
-// Números autorizados a usar comandos de ensino (#corrigir_resposta_iris, #cancelar)
 const ADMIN_PHONE_NUMBERS = ["5521971183737", "5527997244164", "5527997626808"];
 
-// Comando que a Dra. envia para iniciar uma correção da última resposta da Íris.
 const CORRECTION_COMMAND = "#corrigir_resposta_iris";
 const CANCEL_COMMAND = "#cancelar";
 
@@ -31,7 +26,6 @@ const getWhatsappOwnerUserId = () => {
   return DEFAULT_WHATSAPP_OWNER_USER_ID;
 };
 
-// Helper: envia mensagem via Evolution API e salva no histórico
 async function sendWhatsApp(
   evolutionUrl: string,
   evolutionKey: string,
@@ -50,10 +44,7 @@ async function sendWhatsApp(
         "apikey": evolutionKey,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        number: cleanPhone,
-        text,
-      }),
+      body: JSON.stringify({ number: cleanPhone, text }),
     }
   );
 
@@ -77,13 +68,10 @@ async function sendWhatsApp(
 }
 
 serve(async (req) => {
-  // Handle CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // ── Evolution API envia tudo via POST ────────────────────────────────
-  // Não existe GET de verificação como na Meta — basta aceitar o POST.
   try {
     const body = await req.json();
     console.log("Webhook received:", JSON.stringify(body));
@@ -93,7 +81,7 @@ serve(async (req) => {
     const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL")!;
     const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY")!;
     const EVOLUTION_INSTANCE = Deno.env.get("EVOLUTION_INSTANCE_NAME")!;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     const OWNER_USER_ID = getWhatsappOwnerUserId();
 
     if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !EVOLUTION_INSTANCE) {
@@ -106,14 +94,10 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // ── Parse do payload da Evolution API ───────────────────────────────
-    // A Evolution API envia eventos de vários tipos. Filtramos apenas mensagens recebidas.
     const eventType = body?.event;
-
-    // Ignora tudo que não for mensagem recebida
-    // A Evolution API pode enviar como "messages.upsert" ou "MESSAGES_UPSERT"
     const normalizedEvent = (eventType || "").toLowerCase().replace("_", ".");
     console.log("Event type raw:", eventType, "normalized:", normalizedEvent);
+
     if (normalizedEvent !== "messages.upsert") {
       return new Response(JSON.stringify({ status: "ignored", event: eventType }), {
         status: 200,
@@ -123,7 +107,6 @@ serve(async (req) => {
 
     const messageData = body?.data;
 
-    // Ignora mensagens enviadas pelo próprio bot (fromMe = true)
     if (!messageData || messageData?.key?.fromMe === true) {
       return new Response(JSON.stringify({ status: "ignored_outbound" }), {
         status: 200,
@@ -131,17 +114,10 @@ serve(async (req) => {
       });
     }
 
-    // Extrai número e texto
-    // O número vem no formato "5521999999999@s.whatsapp.net" — removemos o sufixo
     const rawPhone = messageData?.key?.remoteJid || "";
     const phoneNumber = rawPhone.replace("@s.whatsapp.net", "").replace(/\D/g, "");
+    const contactName = messageData?.pushName || body?.data?.pushName || "Desconhecido";
 
-    const contactName =
-      messageData?.pushName ||
-      body?.data?.pushName ||
-      "Desconhecido";
-
-    // Suporta texto simples e mensagem de botão/lista
     const messageText =
       messageData?.message?.conversation ||
       messageData?.message?.extendedTextMessage?.text ||
@@ -161,7 +137,6 @@ serve(async (req) => {
 
     console.log(`Message from ${contactName} (${phoneNumber}): ${messageText}`);
 
-    // 🔒 Trava de segurança: ignora números não autorizados no modo teste.
     if (!ALLOWED_PHONE_NUMBERS.includes(phoneNumber)) {
       console.log(`Ignored message from unauthorized number: ${phoneNumber}`);
       return new Response(JSON.stringify({ status: "ignored" }), {
@@ -170,7 +145,6 @@ serve(async (req) => {
       });
     }
 
-    // ── Find or create conversation ──────────────────────────────────────
     let { data: conversation } = await supabase
       .from("whatsapp_conversations")
       .select("*")
@@ -205,7 +179,6 @@ serve(async (req) => {
         .eq("id", conversation.id);
     }
 
-    // Salva mensagem recebida
     await supabase.from("whatsapp_messages").insert({
       conversation_id: conversation.id,
       direction: "inbound",
@@ -282,16 +255,13 @@ serve(async (req) => {
     if (conversation.conversation_state === "awaiting_correction") {
       const isAdmin = ADMIN_PHONE_NUMBERS.includes(phoneNumber);
 
-      // Se não for admin, ignora o estado de correção e trata como conversa normal
       if (!isAdmin) {
         await supabase
           .from("whatsapp_conversations")
           .update({ conversation_state: "greeting", context_data: {} })
           .eq("id", conversation.id);
         conversation.conversation_state = "greeting";
-        // Continua para o fluxo normal da IA abaixo
       } else {
-        // Comando de cancelamento (só para admins)
         if (trimmed.toLowerCase() === CANCEL_COMMAND) {
           await supabase
             .from("whatsapp_conversations")
@@ -307,12 +277,12 @@ serve(async (req) => {
         }
 
         const pending = (conversation.context_data as any)?.pending_correction || {};
-      await supabase.from("iris_learnings").insert({
-        user_id: OWNER_USER_ID,
-        patient_message: pending.patient_message || null,
-        wrong_response: pending.wrong_response || null,
-        correct_response: messageText,
-      });
+        await supabase.from("iris_learnings").insert({
+          user_id: OWNER_USER_ID,
+          patient_message: pending.patient_message || null,
+          wrong_response: pending.wrong_response || null,
+          correct_response: messageText,
+        });
 
         await supabase
           .from("whatsapp_conversations")
@@ -325,7 +295,7 @@ serve(async (req) => {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-      } // fim do bloco else (admin)
+      }
     }
 
     // ── Busca contexto para a IA ─────────────────────────────────────────
@@ -390,7 +360,7 @@ CONSULTÓRIOS (Instituto Health):
 
 AGENDA:
 - Quarta: manhã 07h-11h (Vila Velha)
-- Quinta: manhã 08h-12h
+- Quinta: manhã 08h-12h (Vitória)
 - NÃO atende segunda, terça, sexta, sábado, domingo, feriados
 - NÃO permite agendamento para o mesmo dia
 - Duração da consulta: 1 hora
@@ -401,7 +371,7 @@ VALORES:
 - Pagamento: após a consulta. Aceita dinheiro, Pix, débito, crédito (até 6x com juros). Sem desconto à vista. Fornece nota fiscal para reembolso
 
 PROCEDIMENTOS (valores informados somente em consulta, pois dependem da avaliação individual):
-- Mesoterapia capilar (40min-1h) — microinjeções no couro cabeludo
+- Mesoterapia capilar (40min-1h)
 - MMP – Microinfusão de Medicamentos na Pele (40min-1h)
 - Mesoject Gun — eletroporação sem agulhas, indolor (40min-1h)
 - Microlyzer — microfragmentação de tecidos autólogos (1h30)
@@ -413,12 +383,12 @@ CONDIÇÕES TRATADAS: alopecia androgenética (M/F), alopecia areata, eflúvio t
 NÃO ATENDE o que fugir do cuidado com couro cabeludo/fios.
 
 RESPOSTAS PARA PERGUNTAS FREQUENTES:
-- "Tem cura?" → Depende da causa. Algumas são reversíveis (eflúvio telógeno), outras crônicas e exigem controle contínuo (androgenética). O diagnóstico correto define o prognóstico.
-- "Quanto tempo pro resultado?" → O ciclo capilar é lento. Primeiros sinais em 2-3 meses, resultados consistentes em 4-6 meses. Regularidade faz diferença.
-- "Lavar cabelo piora queda?" → Não. Os fios que caem no banho já estavam em fase de queda. Importante usar produtos adequados ao couro cabeludo.
-- "Aceita plano?" → Não. A consulta oferece avaliação completa e personalizada por médica especializada com formação atualizada em tricologia.
+- "Tem cura?" → Depende da causa. Algumas são reversíveis, outras crônicas e exigem controle contínuo. O diagnóstico correto define o prognóstico.
+- "Quanto tempo pro resultado?" → O ciclo capilar é lento. Primeiros sinais em 2-3 meses, resultados consistentes em 4-6 meses.
+- "Lavar cabelo piora queda?" → Não. Os fios que caem no banho já estavam em fase de queda.
+- "Aceita plano?" → Não. A consulta oferece avaliação completa e personalizada por médica especializada.
 
-OBJEÇÃO DE PREÇO: Responda com empatia e foco em valor (não em desconto). Reforce que é avaliação médica completa que evita gastos com produtos ineficazes. Nunca desvalorize o serviço.
+OBJEÇÃO DE PREÇO: Responda com empatia e foco em valor. Nunca desvalorize o serviço.
 
 PREPARAÇÃO PARA CONSULTA (sempre informar ao agendar):
 - Trazer exames de sangue recentes (se tiver)
@@ -427,13 +397,13 @@ PREPARAÇÃO PARA CONSULTA (sempre informar ao agendar):
 - Lavar o cabelo 1 dia antes da consulta
 
 POLÍTICAS:
-- Cancelamento: até 24h antes sem custo (exceto casos extremos)
+- Cancelamento: até 24h antes sem custo
 - Reagendamento: até 2 vezes, com 24h de antecedência
 - Sem multa por no-show
-- Teleconsulta: não oferece (exceto casos extremos)
+- Teleconsulta: não oferece
 
-EMERGÊNCIA (NÃO AGENDAR, orientar ida ao hospital com tom calmo):
-- Dor de cabeça intensa, vômitos persistentes, prostração, secreção purulenta do couro cabeludo com febre
+EMERGÊNCIA (NÃO AGENDAR, orientar ida ao hospital):
+- Dor de cabeça intensa, vômitos persistentes, secreção purulenta com febre
 
 REDES: Instagram @dra.gabriellesagrillo | Site: www.gabriellesagrillo.com.br | WhatsApp: (27) 99244-9495
 
@@ -444,10 +414,8 @@ FLUXO DE AGENDAMENTO:
 4. SEMPRE pergunte qual local o paciente prefere ANTES de sugerir qualquer horário:
    - Vila Velha (Praia da Costa) — atendimento às quartas-feiras
    - Vitória (Mata da Praia) — atendimento às quintas-feiras
-   - Cariacica (Villaggio Campo Grande) — atendimento às sextas-feiras (quinzenal)
-   ⚠️ REGRA CRÍTICA DE LOCAL: NUNCA assuma o local com base em mensagens anteriores.
+   ⚠️ REGRA CRÍTICA: NUNCA assuma o local com base em mensagens anteriores.
    O local SÓ está confirmado se o paciente o mencionou EXPLICITAMENTE na mensagem atual.
-   Se o paciente fizer qualquer pergunta nova sobre local ou horário, trate como nova escolha.
 5. Só após o paciente confirmar o local NA MENSAGEM ATUAL, apresente os horários disponíveis
 6. Informe o valor (R$350 primeira consulta) APENAS se o paciente perguntar
 7. Confirme o agendamento e envie as orientações pré-consulta
@@ -456,66 +424,80 @@ ESTADO ATUAL DA CONVERSA: ${conversation.conversation_state}
 DADOS COLETADOS: ${JSON.stringify(conversation.context_data)}
 HORÁRIOS OCUPADOS (próx. 7 dias): ${busySlots || "Nenhum agendamento ainda"}
 
-📚 APRENDIZADOS DA DRA. GABRIELLE (correções prévias que você DEVE seguir):
+📚 APRENDIZADOS DA DRA. GABRIELLE:
 ${learningsBlock}
 
-REGRA CRÍTICA SOBRE OS APRENDIZADOS: Sempre que uma situação semelhante a um dos exemplos acima aparecer, use a "Resposta CORRETA" como referência principal. Adapte o tom mas mantenha o conteúdo e a postura ensinada pela Dra.
+REGRA CRÍTICA SOBRE OS APRENDIZADOS: Sempre que uma situação semelhante aparecer, use a "Resposta CORRETA" como referência principal.
 
-IMPORTANTE: Se o paciente confirmar um agendamento, responda com o JSON de ação no final da mensagem, separado por |||ACTION|||:
+IMPORTANTE: Se o paciente confirmar um agendamento, responda com o JSON no final separado por |||ACTION|||:
 {"action":"schedule","patient_name":"Nome","phone":"telefone","complaint":"queixa","date":"YYYY-MM-DD","time":"HH:MM"}
 
-Exemplo de resposta com ação:
-Perfeito! ✅ Sua consulta está agendada para dia 15/04 às 10h com a Dra. Gabrielle. Enviaremos um lembrete!|||ACTION|||{"action":"schedule","patient_name":"Maria","phone":"5511999999","complaint":"queda capilar","date":"2026-04-15","time":"10:00"}
-
-Se precisar atualizar o estado da conversa, adicione também:
+Se precisar atualizar o estado da conversa:
 |||STATE|||{"state":"scheduling","context":{"name":"Maria","complaint":"queda capilar"}}`;
 
-    // ── Chama a IA ───────────────────────────────────────────────────────
+    // ── Chama Gemini 1.5 Pro ─────────────────────────────────────────────
     let aiResponse = "Olá! 👋 Bem-vinda à Clínica Dra. Gabrielle Sagrillo. Estou com dificuldades técnicas no momento, mas uma de nossas atendentes entrará em contato em breve!";
 
-    if (LOVABLE_API_KEY) {
+    if (GEMINI_API_KEY) {
       try {
-        const aiMessages = [
-          { role: "system", content: systemPrompt },
-          ...((recentMessages || []).map((m: any) => ({
-            role: m.direction === "inbound" ? "user" : "assistant",
-            content: m.message_text,
-          }))),
-        ];
+        // Monta histórico no formato Gemini
+        const historyMessages = (recentMessages || []).map((m: any) => ({
+          role: m.direction === "inbound" ? "user" : "model",
+          parts: [{ text: m.message_text }],
+        }));
 
-        if (aiMessages.length <= 1 || aiMessages[aiMessages.length - 1].role !== "user") {
-          aiMessages.push({ role: "user", content: messageText });
-        }
+        // Garante que o último item do histórico não é do usuário atual (evita duplicata)
+        const lastIsUser =
+          historyMessages.length > 0 &&
+          historyMessages[historyMessages.length - 1].role === "user";
+        if (lastIsUser) historyMessages.pop();
 
-        const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: aiMessages,
-          }),
-        });
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              system_instruction: {
+                parts: [{ text: systemPrompt }],
+              },
+              contents: [
+                ...historyMessages,
+                { role: "user", parts: [{ text: messageText }] },
+              ],
+              generationConfig: {
+                temperature: 0.4,
+                maxOutputTokens: 1024,
+              },
+            }),
+          }
+        );
 
-        if (aiRes.ok) {
-          const aiData = await aiRes.json();
-          aiResponse = aiData.choices?.[0]?.message?.content || aiResponse;
+        if (geminiRes.ok) {
+          const geminiData = await geminiRes.json();
+          const candidate = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (candidate) {
+            aiResponse = candidate;
+            console.log("Gemini 1.5 Pro responded successfully");
+          } else {
+            console.error("Gemini empty response:", JSON.stringify(geminiData));
+          }
         } else {
-          console.error("AI error:", aiRes.status, await aiRes.text());
+          const errText = await geminiRes.text();
+          console.error("Gemini API error:", geminiRes.status, errText);
         }
       } catch (aiError) {
         console.error("AI call failed:", aiError);
       }
+    } else {
+      console.warn("GEMINI_API_KEY not set — using fallback message");
     }
 
-    // ── Parse de ações da resposta da IA ────────────────────────────────
+    // ── Parse de ações ───────────────────────────────────────────────────
     let responseText = aiResponse;
     let actionData = null;
     let stateData = null;
 
-    // Remove os marcadores internos do texto antes de enviar ao paciente
     if (aiResponse.includes("|||ACTION|||")) {
       const parts = aiResponse.split("|||ACTION|||");
       responseText = parts[0].trim();
@@ -529,9 +511,7 @@ Se precisar atualizar o estado da conversa, adicione também:
 
     if (aiResponse.includes("|||STATE|||")) {
       const parts = aiResponse.split("|||STATE|||");
-      // Remove o STATE do texto visível ao paciente
       responseText = parts[0].replace("|||ACTION|||", "").trim();
-      // Remove possível ACTION orphan do responseText
       if (responseText.includes("|||ACTION|||")) {
         responseText = responseText.split("|||ACTION|||")[0].trim();
       }
@@ -542,13 +522,13 @@ Se precisar atualizar o estado da conversa, adicione também:
       }
     }
 
-    // Garantia final: remove qualquer marcador residual
+    // Garantia final: remove marcadores residuais
     responseText = responseText
       .replace(/\|\|\|ACTION\|\|\|.*$/s, "")
       .replace(/\|\|\|STATE\|\|\|.*$/s, "")
       .trim();
 
-    // Executa agendamento se necessário
+    // Executa agendamento
     if (actionData?.action === "schedule") {
       const { error: aptError } = await supabase.from("appointments").insert({
         user_id: OWNER_USER_ID,
@@ -568,7 +548,7 @@ Se precisar atualizar o estado da conversa, adicione também:
       }
     }
 
-    // Atualiza estado da conversa
+    // Atualiza estado
     if (stateData) {
       await supabase
         .from("whatsapp_conversations")
@@ -579,7 +559,7 @@ Se precisar atualizar o estado da conversa, adicione também:
         .eq("id", conversation.id);
     }
 
-    // Envia resposta via Evolution API
+    // Envia resposta
     await sendWhatsApp(
       EVOLUTION_API_URL,
       EVOLUTION_API_KEY,
