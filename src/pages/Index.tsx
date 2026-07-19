@@ -1,4 +1,6 @@
 import { Calendar, Users, Clock, TrendingUp, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const stats = [
   {
@@ -49,10 +51,29 @@ const statusLabels: Record<string, { label: string; className: string }> = {
 };
 
 const Index = () => {
+  const [displayName, setDisplayName] = useState("Doutora");
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("name")
+        .eq("id", user.id)
+        .maybeSingle();
+      const full = (data?.name || "").trim();
+      if (full) {
+        const first = full.split(/\s+/)[0];
+        setDisplayName(`Dra. ${first}`);
+      }
+    })();
+  }, []);
+
   return (
     <div className="space-y-8 animate-fade-in">
       <div>
-        <h1 className="text-3xl font-heading font-semibold text-foreground">Bom dia, Dra. Maria</h1>
+        <h1 className="text-3xl font-heading font-semibold text-foreground">Bom dia, {displayName}</h1>
         <p className="text-muted-foreground font-body mt-1">Aqui está o resumo do seu dia.</p>
       </div>
 
