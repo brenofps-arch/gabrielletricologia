@@ -2,7 +2,7 @@
 // A GEMINI_API_KEY é lida do ambiente da Edge Function e nunca sai do backend.
 
 export interface GeminiContent {
-  role: "user" | "model" | "function";
+  role: "user" | "model";
   parts: any[];
 }
 
@@ -29,7 +29,7 @@ export interface GenerateResult {
   error?: string;
 }
 
-const DEFAULT_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
+const DEFAULT_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.6-flash";
 
 export function createGeminiService(apiKey?: string) {
   const key = apiKey ?? Deno.env.get("GEMINI_API_KEY") ?? "";
@@ -115,7 +115,7 @@ export function createGeminiService(apiKey?: string) {
           functionResponse: { name: call.name, response: { result } },
         });
       }
-      contents.push({ role: "function", parts: responseParts });
+      contents.push({ role: "user", parts: responseParts });
     }
 
     return { text: "", toolCalls: executed };
