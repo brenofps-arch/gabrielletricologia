@@ -29,7 +29,7 @@ export interface GenerateResult {
   error?: string;
 }
 
-const DEFAULT_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
+const DEFAULT_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.6-flash";
 
 export function createGeminiService(apiKey?: string) {
   const key = apiKey ?? Deno.env.get("GEMINI_API_KEY") ?? "";
