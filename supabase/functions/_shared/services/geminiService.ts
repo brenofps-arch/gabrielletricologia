@@ -2,7 +2,7 @@
 // A GEMINI_API_KEY é lida do ambiente da Edge Function e nunca sai do backend.
 
 export interface GeminiContent {
-  role: "user" | "model" | "function";
+  role: "user" | "model";
   parts: any[];
 }
 
@@ -115,7 +115,7 @@ export function createGeminiService(apiKey?: string) {
           functionResponse: { name: call.name, response: { result } },
         });
       }
-      contents.push({ role: "function", parts: responseParts });
+      contents.push({ role: "user", parts: responseParts });
     }
 
     return { text: "", toolCalls: executed };
