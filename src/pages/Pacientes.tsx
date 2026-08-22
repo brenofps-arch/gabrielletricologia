@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, ChevronRight, User } from "lucide-react";
+import { Search, Plus, ChevronRight, User, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -16,6 +20,10 @@ const Pacientes = () => {
   const [showNew, setShowNew] = useState(false);
   const [newForm, setNewForm] = useState({ name: "", phone: "", email: "", condition: "", birth_date: "" });
   const [saving, setSaving] = useState(false);
+
+  // Exclusão — dupla confirmação
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
 
   const { data: patients = [], isLoading } = useQuery({
     queryKey: ["patients"],
@@ -53,6 +61,24 @@ const Pacientes = () => {
     setSaving(false);
   };
 
+  const handleDeleteClick = (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation(); // não navegar para o detalhe
+    setDeleteTarget({ id, name });
+    setDeleteStep(1);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    const { error } = await supabase.from("patients").delete().eq("id", deleteTarget.id);
+    if (error) toast.error("Erro ao excluir paciente.");
+    else {
+      toast.success("Paciente excluído.");
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+    }
+    setDeleteTarget(null);
+    setDeleteStep(1);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -77,11 +103,12 @@ const Pacientes = () => {
       </div>
 
       <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="grid grid-cols-[1fr_150px_180px_80px_40px] gap-4 px-5 py-3 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider font-body">
+        <div className="grid grid-cols-[1fr_150px_180px_80px_40px_36px] gap-4 px-5 py-3 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider font-body">
           <span>Paciente</span>
           <span>Telefone</span>
           <span>Condição</span>
           <span>Sessões</span>
+          <span />
           <span />
         </div>
         {isLoading ? (
@@ -93,7 +120,7 @@ const Pacientes = () => {
             <div
               key={patient.id}
               onClick={() => navigate(`/pacientes/${patient.id}`)}
-              className="grid grid-cols-[1fr_150px_180px_80px_40px] gap-4 px-5 py-4 border-b border-border/50 items-center hover:bg-muted/30 transition-colors cursor-pointer"
+              className="grid grid-cols-[1fr_150px_180px_80px_40px_36px] gap-4 px-5 py-4 border-b border-border/50 items-center hover:bg-muted/30 transition-colors cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
@@ -109,6 +136,13 @@ const Pacientes = () => {
               ) : <span className="text-sm text-muted-foreground">—</span>}
               <span className="text-sm text-foreground font-medium">{patient.sessions_count}</span>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              <button
+                onClick={(e) => handleDeleteClick(e, patient.id, patient.name)}
+                className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title="Excluir paciente"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           ))
         )}
@@ -133,7 +167,7 @@ const Pacientes = () => {
               <Label>Email</Label>
               <Input value={newForm.email} onChange={(e) => setNewForm({ ...newForm, email: e.target.value })} type="email" className="mt-1" />
             </div>
-             <div>
+            <div>
               <Label>Condição</Label>
               <Input value={newForm.condition} onChange={(e) => setNewForm({ ...newForm, condition: e.target.value })} placeholder="Ex: Queda Capilar" className="mt-1" />
             </div>
@@ -148,6 +182,44 @@ const Pacientes = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Excluir — passo 1 */}
+      <AlertDialog open={!!deleteTarget && deleteStep === 1}
+        onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteStep(1); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir paciente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você está prestes a excluir <strong>{deleteTarget?.name}</strong> e todo o histórico vinculado. Tem certeza?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDeleteTarget(null); setDeleteStep(1); }}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => setDeleteStep(2)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Sim, quero excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Excluir — passo 2 */}
+      <AlertDialog open={!!deleteTarget && deleteStep === 2}
+        onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteStep(1); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>⚠️ Última confirmação</AlertDialogTitle>
+            <AlertDialogDescription>
+              Segunda confirmação obrigatória. Excluir <strong>{deleteTarget?.name}</strong> é permanente e irrecuperável. Confirma?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDeleteTarget(null); setDeleteStep(1); }}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
