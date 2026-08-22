@@ -331,9 +331,15 @@ const Agenda = () => {
             </Button>
           )}
           {connected && (
-            <span className="flex items-center gap-1.5 text-sm text-primary font-medium">
-              <CheckCircle2 className="w-4 h-4" /> Conectada
-            </span>
+            <button
+              onClick={connectGoogle}
+              disabled={connecting}
+              title="Clique para reconectar o Google Calendar"
+              className="flex items-center gap-1.5 text-sm text-primary font-medium hover:text-primary/70 transition-colors cursor-pointer"
+            >
+              {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              {connecting ? "Reconectando..." : "Conectada"}
+            </button>
           )}
           {connected && (
             <Button onClick={() => openCreate()} className="gap-2">
