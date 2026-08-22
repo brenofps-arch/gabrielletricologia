@@ -3,6 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { formatPhone } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,6 +21,7 @@ interface EditPatientModalProps {
     email: string | null;
     condition: string | null;
     birth_date: string | null;
+    referral_source: string | null;
   };
 }
 
@@ -29,6 +34,7 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
     email: "",
     condition: "",
     birth_date: "",
+    referral_source: "",
   });
 
   useEffect(() => {
@@ -39,15 +45,13 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
         email: patient.email || "",
         condition: patient.condition || "",
         birth_date: patient.birth_date || "",
+        referral_source: patient.referral_source || "",
       });
     }
   }, [open, patient]);
 
   const handleSave = async () => {
-    if (!form.name.trim()) {
-      toast.error("Nome é obrigatório.");
-      return;
-    }
+    if (!form.name.trim()) { toast.error("Nome é obrigatório."); return; }
     setSaving(true);
     const { error } = await supabase
       .from("patients")
@@ -57,6 +61,7 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
         email: form.email || null,
         condition: form.condition || null,
         birth_date: form.birth_date || null,
+        referral_source: form.referral_source || null,
       })
       .eq("id", patient.id);
 
@@ -84,7 +89,7 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
           </div>
           <div>
             <Label>Telefone</Label>
-            <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(27) 99999-0000" className="mt-1" />
+            <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: formatPhone(e.target.value) })} placeholder="(27) 99999 0000" className="mt-1" />
           </div>
           <div>
             <Label>Email</Label>
@@ -97,6 +102,24 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
           <div>
             <Label>Condição</Label>
             <Input value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value })} placeholder="Ex: Queda Capilar" className="mt-1" />
+          </div>
+          <div>
+            <Label>Como nos conheceu?</Label>
+            <Select value={form.referral_source} onValueChange={(v) => setForm({ ...form, referral_source: v })}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Selecione a origem..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="indicacao">👥 Indicação de paciente</SelectItem>
+                <SelectItem value="google">🔍 Google / Busca online</SelectItem>
+                <SelectItem value="anuncio">📢 Anúncio (Instagram / Facebook)</SelectItem>
+                <SelectItem value="instagram_organico">📸 Instagram (perfil orgânico)</SelectItem>
+                <SelectItem value="tiktok">🎵 TikTok</SelectItem>
+                <SelectItem value="indicacao_medico">🩺 Indicação de médico</SelectItem>
+                <SelectItem value="retorno">🔄 Retorno de paciente antigo</SelectItem>
+                <SelectItem value="outro">➕ Outro</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>
