@@ -2,10 +2,14 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, FileDown, AlertTriangle, User, Phone, Mail, Cake, Pencil, Receipt } from "lucide-react";
+import { ArrowLeft, Plus, FileDown, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import ConsultationTimeline from "@/components/patient/ConsultationTimeline";
 import NewConsultationModal from "@/components/patient/NewConsultationModal";
@@ -14,6 +18,7 @@ import MedicationHistory from "@/components/patient/MedicationHistory";
 import EditPatientModal from "@/components/patient/EditPatientModal";
 import QuoteModal from "@/components/patient/QuoteModal";
 import QuoteHistory from "@/components/patient/QuoteHistory";
+import PaymentHistory from "@/components/patient/PaymentHistory";
 
 const PatientDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +30,9 @@ const PatientDetail = () => {
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState("");
   const [showEdit, setShowEdit] = useState(false);
+
+  // Exclusão do paciente — dupla confirmação
+  const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
 
   const { data: patient, isLoading: loadingPatient } = useQuery({
     queryKey: ["patient", id],
@@ -58,6 +66,16 @@ const PatientDetail = () => {
       queryClient.invalidateQueries({ queryKey: ["patient", id] });
       setEditingNotes(false);
     }
+  };
+
+  const handleDeletePatient = async () => {
+    const { error } = await supabase.from("patients").delete().eq("id", id!);
+    if (error) toast.error("Erro ao excluir paciente.");
+    else {
+      toast.success("Paciente excluído com sucesso.");
+      navigate("/pacientes");
+    }
+    setDeleteStep(0);
   };
 
   const refresh = () => {
@@ -94,9 +112,13 @@ const PatientDetail = () => {
             {patient.birth_date && <span className="flex items-center gap-1"><Cake className="w-3.5 h-3.5" />{new Date(patient.birth_date).toLocaleDateString("pt-BR")}</span>}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           <Button variant="outline" size="icon" onClick={() => setShowEdit(true)} title="Editar paciente">
             <Pencil className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => setDeleteStep(1)} title="Excluir paciente"
+            className="text-destructive border-destructive/30 hover:bg-destructive/5">
+            <Trash2 className="w-4 h-4" />
           </Button>
           <Button variant="outline" className="gap-1.5" onClick={() => setShowPrescription(true)}>
             <FileDown className="w-4 h-4" /> Gerar Receita
@@ -147,6 +169,7 @@ const PatientDetail = () => {
           <TabsTrigger value="timeline">Histórico de Consultas</TabsTrigger>
           <TabsTrigger value="medications">Farmacoterapia</TabsTrigger>
           <TabsTrigger value="quotes">Orçamentos</TabsTrigger>
+          <TabsTrigger value="payments">Pagamentos</TabsTrigger>
         </TabsList>
         <TabsContent value="timeline" className="mt-4">
           <ConsultationTimeline consultations={consultations} />
@@ -157,6 +180,9 @@ const PatientDetail = () => {
         <TabsContent value="quotes" className="mt-4">
           <QuoteHistory patientId={patient.id} patientName={patient.name} />
         </TabsContent>
+        <TabsContent value="payments" className="mt-4">
+          <PaymentHistory patientId={patient.id} />
+        </TabsContent>
       </Tabs>
 
       {/* Modals */}
@@ -164,6 +190,42 @@ const PatientDetail = () => {
       <PrescriptionModal open={showPrescription} onOpenChange={setShowPrescription} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
       <QuoteModal open={showQuote} onOpenChange={setShowQuote} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
       {patient && <EditPatientModal open={showEdit} onOpenChange={setShowEdit} patient={patient} />}
+
+      {/* ── Excluir paciente — passo 1 ── */}
+      <AlertDialog open={deleteStep === 1} onOpenChange={(o) => { if (!o) setDeleteStep(0); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir paciente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você está prestes a excluir <strong>{patient.name}</strong> e todo o seu histórico (consultas, receitas, orçamentos). Tem certeza?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteStep(0)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => setDeleteStep(2)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Sim, quero excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Excluir paciente — passo 2 ── */}
+      <AlertDialog open={deleteStep === 2} onOpenChange={(o) => { if (!o) setDeleteStep(0); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>⚠️ Última confirmação</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta é sua segunda e última confirmação. Excluir <strong>{patient.name}</strong> removerá permanentemente todos os dados deste paciente. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteStep(0)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePatient} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
