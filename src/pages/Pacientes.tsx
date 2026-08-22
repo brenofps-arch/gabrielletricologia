@@ -10,6 +10,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { formatPhone } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -18,7 +22,7 @@ const Pacientes = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ name: "", phone: "", email: "", condition: "", birth_date: "" });
+  const [newForm, setNewForm] = useState({ name: "", phone: "", email: "", condition: "", birth_date: "", referral_source: "" });
   const [saving, setSaving] = useState(false);
 
   // Exclusão — dupla confirmação
@@ -49,12 +53,13 @@ const Pacientes = () => {
       email: newForm.email || null,
       condition: newForm.condition || null,
       birth_date: newForm.birth_date || null,
+      referral_source: newForm.referral_source || null,
     });
 
     if (error) toast.error("Erro ao cadastrar paciente.");
     else {
       toast.success("Paciente cadastrado!");
-      setNewForm({ name: "", phone: "", email: "", condition: "", birth_date: "" });
+      setNewForm({ name: "", phone: "", email: "", condition: "", birth_date: "", referral_source: "" });
       setShowNew(false);
       queryClient.invalidateQueries({ queryKey: ["patients"] });
     }
@@ -128,7 +133,7 @@ const Pacientes = () => {
                 </div>
                 <span className="text-sm font-medium text-foreground">{patient.name}</span>
               </div>
-              <span className="text-sm text-muted-foreground">{patient.phone || "—"}</span>
+              <span className="text-sm text-muted-foreground">{patient.phone ? formatPhone(patient.phone) : "—"}</span>
               {patient.condition ? (
                 <span className="text-xs font-medium px-3 py-1 rounded-full bg-mint-light text-secondary-foreground w-fit">
                   {patient.condition}
@@ -161,7 +166,7 @@ const Pacientes = () => {
             </div>
             <div>
               <Label>Telefone</Label>
-              <Input value={newForm.phone} onChange={(e) => setNewForm({ ...newForm, phone: e.target.value })} placeholder="(11) 99999-0000" className="mt-1" />
+              <Input value={newForm.phone} onChange={(e) => setNewForm({ ...newForm, phone: formatPhone(e.target.value) })} placeholder="(11) 99999 0000" className="mt-1" />
             </div>
             <div>
               <Label>Email</Label>
@@ -174,6 +179,24 @@ const Pacientes = () => {
             <div>
               <Label>Data de Nascimento</Label>
               <Input value={newForm.birth_date} onChange={(e) => setNewForm({ ...newForm, birth_date: e.target.value })} type="date" className="mt-1" />
+            </div>
+            <div>
+              <Label>Como nos conheceu?</Label>
+              <Select value={newForm.referral_source} onValueChange={(v) => setNewForm({ ...newForm, referral_source: v })}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecione a origem..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="indicacao">👥 Indicação de paciente</SelectItem>
+                  <SelectItem value="google">🔍 Google / Busca online</SelectItem>
+                  <SelectItem value="anuncio">📢 Anúncio (Instagram / Facebook)</SelectItem>
+                  <SelectItem value="instagram_organico">📸 Instagram (perfil orgânico)</SelectItem>
+                  <SelectItem value="tiktok">🎵 TikTok</SelectItem>
+                  <SelectItem value="indicacao_medico">🩺 Indicação de médico</SelectItem>
+                  <SelectItem value="retorno">🔄 Retorno de paciente antigo</SelectItem>
+                  <SelectItem value="outro">➕ Outro</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
