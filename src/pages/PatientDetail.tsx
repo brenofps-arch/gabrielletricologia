@@ -3,8 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Plus, FileDown, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2 } from "lucide-react";
-import { formatPhone } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { formatPhone } from "@/lib/utils";import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -111,6 +110,7 @@ const PatientDetail = () => {
             {patient.phone && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{formatPhone(patient.phone)}</span>}
             {patient.email && <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" />{patient.email}</span>}
             {patient.birth_date && <span className="flex items-center gap-1"><Cake className="w-3.5 h-3.5" />{new Date(patient.birth_date).toLocaleDateString("pt-BR")}</span>}
+            {patient.cpf && <span className="flex items-center gap-1 text-xs">CPF: {patient.cpf}</span>}
           </div>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
