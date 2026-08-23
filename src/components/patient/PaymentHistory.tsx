@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Wallet, Trash2 } from "lucide-react";
+import { Plus, Wallet, Trash2, CheckCircle2, CircleDashed, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -32,13 +32,13 @@ const PaymentHistory = ({ patientId }: Props) => {
   const [showNew, setShowNew] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({
     amount: "",
     payment_method: "",
     payment_date: new Date().toISOString().split("T")[0],
     description: "",
     notes: "",
+    status: "paid",
   });
 
   const { data: payments = [], isLoading } = useQuery({
@@ -54,7 +54,8 @@ const PaymentHistory = ({ patientId }: Props) => {
     },
   });
 
-  const totalPaid = payments.reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+  const totalPaid = payments.reduce((sum: number, p: any) => sum + (p.status === "paid" ? Number(p.amount) : 0), 0);
+  const totalPending = payments.reduce((sum: number, p: any) => sum + (p.status === "pending" ? Number(p.amount) : 0), 0);
 
   const handleSave = async () => {
     if (!form.amount || isNaN(Number(form.amount))) { toast.error("Informe o valor."); return; }
@@ -67,6 +68,7 @@ const PaymentHistory = ({ patientId }: Props) => {
       amount: Number(form.amount),
       payment_method: form.payment_method,
       payment_date: form.payment_date,
+      status: form.status,
       description: form.description || null,
       notes: form.notes || null,
     });
@@ -75,13 +77,20 @@ const PaymentHistory = ({ patientId }: Props) => {
       toast.success("Pagamento registrado!");
       queryClient.invalidateQueries({ queryKey: ["payments", patientId] });
       setShowNew(false);
-      setForm({ amount: "", payment_method: "", payment_date: new Date().toISOString().split("T")[0], description: "", notes: "" });
+      setForm({ amount: "", payment_method: "", payment_date: new Date().toISOString().split("T")[0], description: "", notes: "", status: "paid" });
     }
     setSaving(false);
   };
 
-  const handleDeleteStep1 = (id: string) => { setDeleteTarget(id); setDeleteStep(1); };
-  const handleDeleteStep2 = () => setDeleteStep(2);
+  const markPaid = async (id: string) => {
+    const { error } = await supabase.from("payments").update({ status: "paid", paid_at: new Date().toISOString() }).eq("id", id);
+    if (error) toast.error("Erro ao atualizar pagamento.");
+    else {
+      toast.success("Marcado como pago!");
+      queryClient.invalidateQueries({ queryKey: ["payments", patientId] });
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     const { error } = await supabase.from("payments").delete().eq("id", deleteTarget);
@@ -91,21 +100,28 @@ const PaymentHistory = ({ patientId }: Props) => {
       queryClient.invalidateQueries({ queryKey: ["payments", patientId] });
     }
     setDeleteTarget(null);
-    setDeleteStep(1);
   };
 
   return (
     <>
       <div className="space-y-4">
-        {/* Resumo total */}
-        <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-xl">
-          <div>
-            <p className="text-xs text-green-700 font-medium uppercase tracking-wider">Total recebido</p>
+        {/* Resumo */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
+            <p className="text-xs text-green-700 font-medium uppercase tracking-wider">Recebido</p>
             <p className="text-2xl font-heading font-semibold text-green-800">
               {totalPaid.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
             </p>
-            <p className="text-xs text-green-600 mt-0.5">{payments.length} {payments.length === 1 ? "pagamento registrado" : "pagamentos registrados"}</p>
           </div>
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <p className="text-xs text-amber-700 font-medium uppercase tracking-wider">Pendente</p>
+            <p className="text-2xl font-heading font-semibold text-amber-800">
+              {totalPending.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
           <Button onClick={() => setShowNew(true)} className="gap-1.5">
             <Plus className="w-4 h-4" /> Novo pagamento
           </Button>
@@ -124,13 +140,22 @@ const PaymentHistory = ({ patientId }: Props) => {
             {payments.map((p: any) => (
               <div key={p.id} className="flex items-center justify-between border border-border rounded-lg px-4 py-3 bg-card hover:bg-muted/30 transition-colors">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-foreground">
                       {Number(p.amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
                       {p.payment_method}
                     </span>
+                    {p.status === "paid" ? (
+                      <span className="text-[10px] flex items-center gap-1 text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                        <CheckCircle2 className="w-3 h-3" /> Pago
+                      </span>
+                    ) : (
+                      <span className="text-[10px] flex items-center gap-1 text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                        <CircleDashed className="w-3 h-3" /> Pendente
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5 truncate">
                     {new Date(p.payment_date + "T12:00").toLocaleDateString("pt-BR")}
@@ -138,10 +163,18 @@ const PaymentHistory = ({ patientId }: Props) => {
                     {p.notes ? ` · ${p.notes}` : ""}
                   </p>
                 </div>
-                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive flex-shrink-0"
-                  onClick={() => handleDeleteStep1(p.id)}>
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  {p.status === "pending" && (
+                    <Button variant="ghost" size="sm" className="text-green-700 hover:text-green-800 hover:bg-green-50"
+                      onClick={() => markPaid(p.id)} title="Marcar como pago">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive flex-shrink-0"
+                    onClick={() => setDeleteTarget(p.id)} title="Excluir pagamento">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -152,7 +185,7 @@ const PaymentHistory = ({ patientId }: Props) => {
       <Dialog open={showNew} onOpenChange={setShowNew}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-heading">Novo Pagamento Avulso</DialogTitle>
+            <DialogTitle className="font-heading">Novo Pagamento</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-1">
             <div>
@@ -172,10 +205,20 @@ const PaymentHistory = ({ patientId }: Props) => {
               </Select>
             </div>
             <div>
-              <Label>Data do pagamento *</Label>
+              <Label>Data do pagamento / vencimento *</Label>
               <Input className="mt-1" type="date"
                 value={form.payment_date}
                 onChange={(e) => setForm({ ...form, payment_date: e.target.value })} />
+            </div>
+            <div>
+              <Label>Status</Label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paid">Pago</SelectItem>
+                  <SelectItem value="pending">Pendente</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Descrição</Label>
@@ -197,37 +240,18 @@ const PaymentHistory = ({ patientId }: Props) => {
         </DialogContent>
       </Dialog>
 
-      {/* Excluir — passo 1 */}
-      <AlertDialog open={!!deleteTarget && deleteStep === 1}
-        onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteStep(1); } }}>
+      {/* Excluir pagamento */}
+      <AlertDialog open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir pagamento?</AlertDialogTitle>
             <AlertDialogDescription>Tem certeza que deseja excluir este registro de pagamento?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setDeleteTarget(null); setDeleteStep(1); }}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteStep2} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Sim, quero excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Excluir — passo 2 */}
-      <AlertDialog open={!!deleteTarget && deleteStep === 2}
-        onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteStep(1); } }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>⚠️ Confirme novamente</AlertDialogTitle>
-            <AlertDialogDescription>
-              Segundo aviso: este pagamento será excluído permanentemente. Confirma?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setDeleteTarget(null); setDeleteStep(1); }}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Excluir definitivamente
+              Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

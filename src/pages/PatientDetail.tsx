@@ -2,16 +2,15 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, FileDown, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2 } from "lucide-react";
-import { formatPhone } from "@/lib/utils";
+import { ArrowLeft, Plus, FileDown, AlertTriangle, User, Phone, Mail, Cake, Pencil, Receipt, Trash2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
 import ConsultationTimeline from "@/components/patient/ConsultationTimeline";
 import NewConsultationModal from "@/components/patient/NewConsultationModal";
 import PrescriptionModal from "@/components/patient/PrescriptionModal";
@@ -31,8 +30,6 @@ const PatientDetail = () => {
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState("");
   const [showEdit, setShowEdit] = useState(false);
-
-  // Exclusão do paciente — dupla confirmação
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
 
   const { data: patient, isLoading: loadingPatient } = useQuery({
@@ -69,20 +66,23 @@ const PatientDetail = () => {
     }
   };
 
-  const handleDeletePatient = async () => {
-    const { error } = await supabase.from("patients").delete().eq("id", id!);
-    if (error) toast.error("Erro ao excluir paciente.");
-    else {
-      toast.success("Paciente excluído com sucesso.");
-      navigate("/pacientes");
-    }
-    setDeleteStep(0);
-  };
-
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["consultations", id] });
     queryClient.invalidateQueries({ queryKey: ["prescriptions", id] });
     queryClient.invalidateQueries({ queryKey: ["quotes", id] });
+    queryClient.invalidateQueries({ queryKey: ["payments", id] });
+  };
+
+  const handleDeletePatient = async () => {
+    const { error } = await supabase.from("patients").delete().eq("id", id!);
+    if (error) {
+      toast.error("Erro ao excluir paciente.");
+      setDeleteStep(0);
+    } else {
+      toast.success("Paciente excluído.");
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      navigate("/pacientes");
+    }
   };
 
   if (loadingPatient) {
@@ -108,27 +108,26 @@ const PatientDetail = () => {
         <div className="flex-1">
           <h1 className="text-2xl font-heading font-semibold text-foreground">{patient.name}</h1>
           <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground font-body">
-            {patient.phone && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{formatPhone(patient.phone)}</span>}
+            {patient.phone && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{patient.phone}</span>}
             {patient.email && <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" />{patient.email}</span>}
             {patient.birth_date && <span className="flex items-center gap-1"><Cake className="w-3.5 h-3.5" />{new Date(patient.birth_date).toLocaleDateString("pt-BR")}</span>}
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap justify-end">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="icon" onClick={() => setShowEdit(true)} title="Editar paciente">
             <Pencil className="w-4 h-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={() => setDeleteStep(1)} title="Excluir paciente"
-            className="text-destructive border-destructive/30 hover:bg-destructive/5">
-            <Trash2 className="w-4 h-4" />
-          </Button>
           <Button variant="outline" className="gap-1.5" onClick={() => setShowPrescription(true)}>
-            <FileDown className="w-4 h-4" /> Gerar Receita
+            <FileDown className="w-4 h-4" /> Receita
           </Button>
           <Button variant="outline" className="gap-1.5" onClick={() => setShowQuote(true)}>
-            <Receipt className="w-4 h-4" /> Gerar Orçamento
+            <Receipt className="w-4 h-4" /> Orçamento
           </Button>
           <Button className="gap-1.5" onClick={() => setShowConsultation(true)}>
-            <Plus className="w-4 h-4" /> Nova Evolução
+            <Plus className="w-4 h-4" /> Evolução
+          </Button>
+          <Button variant="outline" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => setDeleteStep(1)} title="Excluir paciente">
+            <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -156,29 +155,13 @@ const PatientDetail = () => {
         )}
       </div>
 
-      {/* Condition badge + origem */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {patient.condition && (
+      {/* Condition badge */}
+      {patient.condition && (
+        <div className="flex items-center gap-2">
           <span className="text-xs font-medium px-3 py-1 rounded-full bg-mint-light text-secondary-foreground">{patient.condition}</span>
-        )}
-        {patient.sessions_count > 0 && (
           <span className="text-xs text-muted-foreground">{patient.sessions_count} sessões realizadas</span>
-        )}
-        {patient.referral_source && (
-          <span className="text-xs font-medium px-3 py-1 rounded-full bg-muted text-muted-foreground border border-border">
-            {{
-              indicacao: "👥 Indicação de paciente",
-              google: "🔍 Google",
-              anuncio: "📢 Anúncio",
-              instagram_organico: "📸 Instagram orgânico",
-              tiktok: "🎵 TikTok",
-              indicacao_medico: "🩺 Indicação médica",
-              retorno: "🔄 Retorno",
-              outro: "➕ Outro",
-            }[patient.referral_source] ?? patient.referral_source}
-          </span>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <Tabs defaultValue="timeline" className="w-full">
@@ -186,7 +169,7 @@ const PatientDetail = () => {
           <TabsTrigger value="timeline">Histórico de Consultas</TabsTrigger>
           <TabsTrigger value="medications">Farmacoterapia</TabsTrigger>
           <TabsTrigger value="quotes">Orçamentos</TabsTrigger>
-          <TabsTrigger value="payments">Pagamentos</TabsTrigger>
+          <TabsTrigger value="payments" className="gap-1.5"><Wallet className="w-3.5 h-3.5" /> Financeiro</TabsTrigger>
         </TabsList>
         <TabsContent value="timeline" className="mt-4">
           <ConsultationTimeline consultations={consultations} />
@@ -208,13 +191,13 @@ const PatientDetail = () => {
       <QuoteModal open={showQuote} onOpenChange={setShowQuote} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
       {patient && <EditPatientModal open={showEdit} onOpenChange={setShowEdit} patient={patient} />}
 
-      {/* ── Excluir paciente — passo 1 ── */}
+      {/* Excluir paciente — passo 1 */}
       <AlertDialog open={deleteStep === 1} onOpenChange={(o) => { if (!o) setDeleteStep(0); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir paciente?</AlertDialogTitle>
             <AlertDialogDescription>
-              Você está prestes a excluir <strong>{patient.name}</strong> e todo o seu histórico (consultas, receitas, orçamentos). Tem certeza?
+              Tem certeza que deseja excluir <strong>{patient.name}</strong>? Todos os prontuários, consultas, orçamentos, receitas e pagamentos vinculados serão removidos permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -226,13 +209,13 @@ const PatientDetail = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Excluir paciente — passo 2 ── */}
+      {/* Excluir paciente — passo 2 */}
       <AlertDialog open={deleteStep === 2} onOpenChange={(o) => { if (!o) setDeleteStep(0); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>⚠️ Última confirmação</AlertDialogTitle>
+            <AlertDialogTitle>⚠️ Confirme novamente</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta é sua segunda e última confirmação. Excluir <strong>{patient.name}</strong> removerá permanentemente todos os dados deste paciente. Esta ação não pode ser desfeita.
+              Segundo aviso: todos os dados de <strong>{patient.name}</strong> serão excluídos permanentemente. Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

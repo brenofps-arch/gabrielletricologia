@@ -253,6 +253,7 @@ export type Database = {
           important_notes: string | null
           name: string
           phone: string | null
+          referral_source: string | null
           sessions_count: number
           updated_at: string
           user_id: string
@@ -266,6 +267,7 @@ export type Database = {
           important_notes?: string | null
           name: string
           phone?: string | null
+          referral_source?: string | null
           sessions_count?: number
           updated_at?: string
           user_id: string
@@ -279,11 +281,75 @@ export type Database = {
           important_notes?: string | null
           name?: string
           phone?: string | null
+          referral_source?: string | null
           sessions_count?: number
           updated_at?: string
           user_id?: string
         }
         Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          notes: string | null
+          paid_at: string | null
+          patient_id: string
+          payment_date: string
+          payment_method: string
+          quote_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          patient_id: string
+          payment_date?: string
+          payment_method: string
+          quote_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          patient_id?: string
+          payment_date?: string
+          payment_method?: string
+          quote_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       prescription_items: {
         Row: {
@@ -445,8 +511,13 @@ export type Database = {
           id: string
           image_use_clause: boolean
           notes: string | null
+          paid_amount: number | null
           patient_id: string
+          payment_date: string | null
+          payment_method: string | null
           payment_methods: string | null
+          payment_notes: string | null
+          payment_status: string | null
           total_value: number
           updated_at: string
           user_id: string
@@ -457,8 +528,13 @@ export type Database = {
           id?: string
           image_use_clause?: boolean
           notes?: string | null
+          paid_amount?: number | null
           patient_id: string
+          payment_date?: string | null
+          payment_method?: string | null
           payment_methods?: string | null
+          payment_notes?: string | null
+          payment_status?: string | null
           total_value?: number
           updated_at?: string
           user_id: string
@@ -469,8 +545,13 @@ export type Database = {
           id?: string
           image_use_clause?: boolean
           notes?: string | null
+          paid_amount?: number | null
           patient_id?: string
+          payment_date?: string | null
+          payment_method?: string | null
           payment_methods?: string | null
+          payment_notes?: string | null
+          payment_status?: string | null
           total_value?: number
           updated_at?: string
           user_id?: string
