@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { formatPhone } from "@/lib/utils";
+import { formatPhone, formatCPF } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,6 +22,7 @@ interface EditPatientModalProps {
     condition: string | null;
     birth_date: string | null;
     referral_source: string | null;
+    cpf: string | null;
   };
 }
 
@@ -29,12 +30,7 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    condition: "",
-    birth_date: "",
-    referral_source: "",
+    name: "", phone: "", email: "", condition: "", birth_date: "", referral_source: "", cpf: "",
   });
 
   useEffect(() => {
@@ -46,6 +42,7 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
         condition: patient.condition || "",
         birth_date: patient.birth_date || "",
         referral_source: patient.referral_source || "",
+        cpf: patient.cpf || "",
       });
     }
   }, [open, patient]);
@@ -62,6 +59,7 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
         condition: form.condition || null,
         birth_date: form.birth_date || null,
         referral_source: form.referral_source || null,
+        cpf: form.cpf || null,
       })
       .eq("id", patient.id);
 
@@ -102,6 +100,12 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
           <div>
             <Label>Condição</Label>
             <Input value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value })} placeholder="Ex: Queda Capilar" className="mt-1" />
+          </div>
+          <div>
+            <Label>CPF</Label>
+            <Input className="mt-1" placeholder="000.000.000-00"
+              value={form.cpf}
+              onChange={(e) => setForm({ ...form, cpf: formatCPF(e.target.value) })} />
           </div>
           <div>
             <Label>Como nos conheceu?</Label>
