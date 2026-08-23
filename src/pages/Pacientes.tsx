@@ -13,7 +13,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { formatPhone } from "@/lib/utils";
+import { formatPhone, formatCPF } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -22,7 +22,7 @@ const Pacientes = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ name: "", phone: "", email: "", condition: "", birth_date: "", referral_source: "" });
+  const [newForm, setNewForm] = useState({ name: "", phone: "", email: "", condition: "", birth_date: "", referral_source: "", cpf: "" });
   const [saving, setSaving] = useState(false);
 
   // Exclusão — dupla confirmação
@@ -54,12 +54,13 @@ const Pacientes = () => {
       condition: newForm.condition || null,
       birth_date: newForm.birth_date || null,
       referral_source: newForm.referral_source || null,
+      cpf: newForm.cpf || null,
     });
 
     if (error) toast.error("Erro ao cadastrar paciente.");
     else {
       toast.success("Paciente cadastrado!");
-      setNewForm({ name: "", phone: "", email: "", condition: "", birth_date: "", referral_source: "" });
+      setNewForm({ name: "", phone: "", email: "", condition: "", birth_date: "", referral_source: "", cpf: "" });
       setShowNew(false);
       queryClient.invalidateQueries({ queryKey: ["patients"] });
     }
@@ -179,6 +180,12 @@ const Pacientes = () => {
             <div>
               <Label>Data de Nascimento</Label>
               <Input value={newForm.birth_date} onChange={(e) => setNewForm({ ...newForm, birth_date: e.target.value })} type="date" className="mt-1" />
+            </div>
+            <div>
+              <Label>CPF</Label>
+              <Input className="mt-1" placeholder="000.000.000-00"
+                value={newForm.cpf}
+                onChange={(e) => setNewForm({ ...newForm, cpf: formatCPF(e.target.value) })} />
             </div>
             <div>
               <Label>Como nos conheceu?</Label>
