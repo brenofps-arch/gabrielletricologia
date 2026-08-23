@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Plus, Clock, Calendar as CalendarIcon, Loader2, CheckCircle2, Trash2, Pencil, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,19 +62,19 @@ const Agenda = () => {
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<{ id: string; name: string; phone: string | null } | null>(null);
   const [showPatientList, setShowPatientList] = useState(false);
+  const [allPatients, setAllPatients] = useState<{ id: string; name: string; phone: string | null }[]>([]);
 
-  const { data: patients = [] } = useQuery({
-    queryKey: ["patients"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("patients").select("id, name, phone").order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  useEffect(() => {
+    const fetchPatients = async () => {
+      const { data } = await supabase.from("patients").select("id, name, phone").order("name");
+      if (data) setAllPatients(data);
+    };
+    fetchPatients();
+  }, []);
 
-  const filteredPatients = patients.filter((p: any) =>
-    p.name.toLowerCase().includes(patientSearch.toLowerCase())
-  );
+  const filteredPatients = patientSearch.length > 0
+    ? allPatients.filter((p) => p.name.toLowerCase().includes(patientSearch.toLowerCase()))
+    : allPatients.slice(0, 8);
 
   const eventTypes = [
     { value: "Consulta", label: "🩺 Consulta" },
@@ -168,6 +167,21 @@ const Agenda = () => {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro");
       toast({ title: editingId ? "Evento atualizado" : "Evento criado" });
+
+      // Salvar no banco local para o Dashboard
+      if (!editingId && json.id) {
+        await supabase.from("appointments").insert({
+          user_id: session!.user.id,
+          patient_id: selectedPatient?.id || null,
+          google_event_id: json.id,
+          title: form.summary,
+          appointment_date: form.date,
+          start_time: form.startTime,
+          end_time: form.endTime,
+          notes: form.description || null,
+          status: "scheduled",
+        });
+      }
 
       if (!editingId && form.sendWhatsApp && form.phone.trim()) {
         try {
@@ -603,7 +617,7 @@ const Agenda = () => {
                         onChange={(e) => { setPatientSearch(e.target.value); setShowPatientList(true); }}
                         onFocus={() => setShowPatientList(true)}
                       />
-                      {showPatientList && patientSearch && filteredPatients.length > 0 && (
+                      {showPatientList && filteredPatients.length > 0 && (
                         <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
                           {filteredPatients.slice(0, 8).map((p: any) => (
                             <button
