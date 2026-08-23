@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Plus, Clock, Calendar as CalendarIcon, Loader2, CheckCircle2, Trash2, Pencil } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Plus, Clock, Calendar as CalendarIcon, Loader2, CheckCircle2, Trash2, Pencil, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useSearchParams } from "react-router-dom";
@@ -56,6 +58,33 @@ const Agenda = () => {
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  // Seleção de paciente e tipo
+  const [eventType, setEventType] = useState("");
+  const [patientSearch, setPatientSearch] = useState("");
+  const [selectedPatient, setSelectedPatient] = useState<{ id: string; name: string; phone: string | null } | null>(null);
+  const [showPatientList, setShowPatientList] = useState(false);
+
+  const { data: patients = [] } = useQuery({
+    queryKey: ["patients"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("patients").select("id, name, phone").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const filteredPatients = patients.filter((p: any) =>
+    p.name.toLowerCase().includes(patientSearch.toLowerCase())
+  );
+
+  const eventTypes = [
+    { value: "Consulta", label: "🩺 Consulta" },
+    { value: "Retorno", label: "🔄 Retorno" },
+    { value: "Sessão de tratamento", label: "💆 Sessão de tratamento" },
+    { value: "Avaliação", label: "📋 Avaliação" },
+    { value: "Outros", label: "➕ Outros" },
+  ];
+
   const pad = (n: number) => n.toString().padStart(2, "0");
   const toDateInput = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const toTimeInput = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -66,6 +95,10 @@ const Agenda = () => {
     const [h, m] = startTime.split(":").map(Number);
     const endH = pad((h + 1) % 24);
     setEditingId(null);
+    setEventType("");
+    setSelectedPatient(null);
+    setPatientSearch("");
+    setShowPatientList(false);
     setForm({
       summary: "",
       description: "",
@@ -95,7 +128,11 @@ const Agenda = () => {
   };
 
   const saveEvent = async () => {
-    if (!form.summary || !form.date || !form.startTime || !form.endTime) {
+    if (!editingId && (!eventType || !selectedPatient)) {
+      toast({ title: "Selecione o tipo e o paciente", variant: "destructive" });
+      return;
+    }
+    if (!form.date || !form.startTime || !form.endTime) {
       toast({ title: "Preencha todos os campos", variant: "destructive" });
       return;
     }
@@ -517,10 +554,92 @@ const Agenda = () => {
             <DialogDescription>Os dados são sincronizados com o Google Calendar.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="summary">Título *</Label>
-              <Input id="summary" value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} placeholder="Consulta - Maria Silva" />
-            </div>
+            {!editingId ? (
+              <>
+                {/* Tipo de evento */}
+                <div className="space-y-2">
+                  <Label>Tipo de evento *</Label>
+                  <Select value={eventType} onValueChange={(v) => {
+                    setEventType(v);
+                    if (selectedPatient) {
+                      setForm(f => ({ ...f, summary: `${v}: ${selectedPatient.name}` }));
+                    }
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {eventTypes.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Busca de paciente */}
+                <div className="space-y-2">
+                  <Label>Paciente *</Label>
+                  {selectedPatient ? (
+                    <div className="flex items-center justify-between border border-primary/40 bg-primary/5 rounded-lg px-3 py-2">
+                      <span className="text-sm font-medium">{selectedPatient.name}</span>
+                      <button
+                        className="text-xs text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          setSelectedPatient(null);
+                          setPatientSearch("");
+                          setForm(f => ({ ...f, summary: "", phone: "" }));
+                        }}
+                      >
+                        Trocar
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        className="pl-9"
+                        placeholder="Digite o nome do paciente..."
+                        value={patientSearch}
+                        onChange={(e) => { setPatientSearch(e.target.value); setShowPatientList(true); }}
+                        onFocus={() => setShowPatientList(true)}
+                      />
+                      {showPatientList && patientSearch && filteredPatients.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {filteredPatients.slice(0, 8).map((p: any) => (
+                            <button
+                              key={p.id}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                              onClick={() => {
+                                setSelectedPatient(p);
+                                setPatientSearch(p.name);
+                                setShowPatientList(false);
+                                const title = eventType ? `${eventType}: ${p.name}` : p.name;
+                                setForm(f => ({ ...f, summary: title, phone: p.phone || "" }));
+                              }}
+                            >
+                              {p.name}
+                              {p.phone && <span className="ml-2 text-xs text-muted-foreground">{p.phone}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Preview do título */}
+                {(eventType || selectedPatient) && (
+                  <div className="text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
+                    Título do evento: <span className="font-medium text-foreground">{form.summary || `${eventType}${selectedPatient ? `: ${selectedPatient.name}` : ""}`}</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="summary">Título *</Label>
+                <Input id="summary" value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} placeholder="Consulta - Maria Silva" />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="date">Data *</Label>
               <Input id="date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
