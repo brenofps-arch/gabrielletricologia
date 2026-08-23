@@ -53,6 +53,10 @@ Deno.serve(async (req) => {
           access_token: refreshed.access_token,
           expires_at: new Date(Date.now() + refreshed.expires_in * 1000).toISOString(),
         }).eq("user_id", user.id);
+      } else {
+        // Refresh token inválido/revogado (ex.: credenciais OAuth trocadas).
+        await adminClient.from("google_calendar_tokens").delete().eq("user_id", user.id);
+        throw new Error("Sua conexão com o Google Calendar expirou. Reconecte em Configurações para continuar.");
       }
     }
 
