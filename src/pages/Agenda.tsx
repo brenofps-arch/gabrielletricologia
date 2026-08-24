@@ -173,11 +173,11 @@ const Agenda = () => {
         await supabase.from("appointments").insert({
           user_id: session!.user.id,
           patient_id: selectedPatient?.id || null,
-          google_event_id: json.id,
-          title: form.summary,
+          google_calendar_event_id: json.id,
+          patient_name: selectedPatient?.name || form.summary,
+          patient_phone: form.phone ? form.phone.replace(/\D/g, "") : null,
           appointment_date: form.date,
-          start_time: form.startTime,
-          end_time: form.endTime,
+          appointment_time: form.startTime,
           notes: form.description || null,
           status: "scheduled",
         });
