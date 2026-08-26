@@ -326,6 +326,15 @@ const Agenda = () => {
     });
   };
 
+  const eventForDayHour = (day: Date, hour: string) => {
+    return events.find((e) => {
+      const dt = e.start.dateTime || e.start.date;
+      if (!dt) return false;
+      const d = new Date(dt);
+      return sameDay(d, day) && `${d.getHours().toString().padStart(2, "0")}:00` === hour;
+    });
+  };
+
   const eventsForDay = (day: Date) =>
     events.filter((e) => {
       const dt = e.start.dateTime || e.start.date;
