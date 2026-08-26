@@ -98,15 +98,20 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
             <Input value={form.birth_date} onChange={(e) => setForm({ ...form, birth_date: e.target.value })} type="date" className="mt-1" />
           </div>
           <div>
-            <Label>Condição</Label>
-            <Input value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value })} placeholder="Ex: Queda Capilar" className="mt-1" />
-          </div>
-          <div>
             <Label>CPF</Label>
             <Input className="mt-1" placeholder="000.000.000-00"
               value={form.cpf}
               onChange={(e) => setForm({ ...form, cpf: formatCPF(e.target.value) })} />
           </div>
+          <div>
+            <Label>Queixa inicial</Label>
+            <Input value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value })} placeholder="Ex: Queda capilar há 6 meses" className="mt-1" />
+          </div>
+          <div>
+            <Label>Diagnóstico</Label>
+            <Input value={form.diagnosis} onChange={(e) => setForm({ ...form, diagnosis: e.target.value })} placeholder="Preenchido após a consulta" className="mt-1" />
+          </div>
+
           <div>
             <Label>Como nos conheceu?</Label>
             <Select value={form.referral_source} onValueChange={(v) => setForm({ ...form, referral_source: v })}>
