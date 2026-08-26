@@ -174,10 +174,6 @@ const Pacientes = () => {
               <Input value={newForm.email} onChange={(e) => setNewForm({ ...newForm, email: e.target.value })} type="email" className="mt-1" />
             </div>
             <div>
-              <Label>Condição</Label>
-              <Input value={newForm.condition} onChange={(e) => setNewForm({ ...newForm, condition: e.target.value })} placeholder="Ex: Queda Capilar" className="mt-1" />
-            </div>
-            <div>
               <Label>Data de Nascimento</Label>
               <Input value={newForm.birth_date} onChange={(e) => setNewForm({ ...newForm, birth_date: e.target.value })} type="date" className="mt-1" />
             </div>
@@ -186,6 +182,10 @@ const Pacientes = () => {
               <Input className="mt-1" placeholder="000.000.000-00"
                 value={newForm.cpf}
                 onChange={(e) => setNewForm({ ...newForm, cpf: formatCPF(e.target.value) })} />
+            </div>
+            <div>
+              <Label>Queixa inicial</Label>
+              <Input value={newForm.condition} onChange={(e) => setNewForm({ ...newForm, condition: e.target.value })} placeholder="Ex: Queda capilar há 6 meses" className="mt-1" />
             </div>
             <div>
               <Label>Como nos conheceu?</Label>
@@ -206,6 +206,7 @@ const Pacientes = () => {
               </Select>
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNew(false)}>Cancelar</Button>
             <Button onClick={handleCreate} disabled={saving}>{saving ? "Salvando..." : "Cadastrar"}</Button>
