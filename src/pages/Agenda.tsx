@@ -505,7 +505,9 @@ const Agenda = () => {
                     <div className="space-y-1">
                       {dayEvents.slice(0, 3).map((e) => (
                         <div key={e.id} className="text-xs bg-primary/10 text-primary rounded px-1.5 py-1 truncate">
-                          {e.start.dateTime
+                          {e.start.dateTime && e.end.dateTime
+                            ? `${new Date(e.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} - ${new Date(e.end.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} `
+                            : e.start.dateTime
                             ? new Date(e.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) + " "
                             : ""}
                           {e.summary || "Sem título"}
