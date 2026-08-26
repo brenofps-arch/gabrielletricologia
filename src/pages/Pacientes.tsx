@@ -136,11 +136,12 @@ const Pacientes = () => {
                 <span className="text-sm font-medium text-foreground">{patient.name}</span>
               </div>
               <span className="text-sm text-muted-foreground">{patient.phone ? formatPhone(patient.phone) : "—"}</span>
-              {patient.condition ? (
+              {patient.diagnosis ? (
                 <span className="text-xs font-medium px-3 py-1 rounded-full bg-mint-light text-secondary-foreground w-fit">
-                  {patient.condition}
+                  {patient.diagnosis}
                 </span>
               ) : <span className="text-sm text-muted-foreground">—</span>}
+
               <span className="text-sm text-foreground font-medium">{patient.sessions_count}</span>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
               <button
