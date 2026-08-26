@@ -44,7 +44,7 @@ const sameDay = (a: Date, b: Date) =>
 
 const Agenda = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [view, setView] = useState<ViewMode>("day");
+  const [view, setView] = useState<ViewMode>("month");
   const [connected, setConnected] = useState<boolean | null>(null);
   const [events, setEvents] = useState<GEvent[]>([]);
   const [loading, setLoading] = useState(false);
