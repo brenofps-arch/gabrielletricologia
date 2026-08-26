@@ -79,7 +79,7 @@ const Agenda = () => {
   const eventTypes = [
     { value: "Consulta", label: "🩺 Consulta" },
     { value: "Retorno", label: "🔄 Retorno" },
-    { value: "Sessão de tratamento", label: "💆 Sessão de tratamento" },
+    { value: "Procedimento", label: "💆 Procedimento" },
     { value: "Avaliação", label: "📋 Avaliação" },
     { value: "Outros", label: "➕ Outros" },
   ];
