@@ -44,7 +44,7 @@ const sameDay = (a: Date, b: Date) =>
 
 const Agenda = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [view, setView] = useState<ViewMode>("day");
+  const [view, setView] = useState<ViewMode>("month");
   const [connected, setConnected] = useState<boolean | null>(null);
   const [events, setEvents] = useState<GEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -326,6 +326,15 @@ const Agenda = () => {
     });
   };
 
+  const eventForDayHour = (day: Date, hour: string) => {
+    return events.find((e) => {
+      const dt = e.start.dateTime || e.start.date;
+      if (!dt) return false;
+      const d = new Date(dt);
+      return sameDay(d, day) && `${d.getHours().toString().padStart(2, "0")}:00` === hour;
+    });
+  };
+
   const eventsForDay = (day: Date) =>
     events.filter((e) => {
       const dt = e.start.dateTime || e.start.date;
@@ -484,42 +493,69 @@ const Agenda = () => {
               })}
             </div>
           ) : view === "week" ? (
-            <div className="grid grid-cols-7 gap-2">
-              {weekDays().map((day) => {
-                const dayEvents = eventsForDay(day);
-                const isToday = sameDay(day, new Date());
-                return (
-                  <button
-                    key={day.toISOString()}
-                    onClick={() => { setCurrentDate(day); setView("day"); }}
-                    className={`text-left min-h-[140px] rounded-lg border p-2 transition-colors hover:bg-muted/50 ${
-                      isToday ? "border-primary bg-primary/5" : "border-border"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-muted-foreground font-body">{weekdayShort[day.getDay()]}</span>
+            <div className="space-y-1">
+              {/* Cabeçalho dos dias */}
+              <div className="flex gap-2 pl-16">
+                {weekDays().map((day) => {
+                  const isToday = sameDay(day, new Date());
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className={`flex-1 text-center rounded-lg border p-2 ${isToday ? "border-primary bg-primary/5" : "border-border"}`}
+                    >
+                      <span className="text-xs text-muted-foreground font-body block">{weekdayShort[day.getDay()]}</span>
                       <span className={`text-sm font-heading font-semibold ${isToday ? "text-primary" : "text-foreground"}`}>
                         {day.getDate()}
                       </span>
                     </div>
-                    <div className="space-y-1">
-                      {dayEvents.slice(0, 3).map((e) => (
-                        <div key={e.id} className="text-xs bg-primary/10 text-primary rounded px-1.5 py-1 truncate">
-                          {e.start.dateTime && e.end.dateTime
-                            ? `${new Date(e.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} - ${new Date(e.end.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} `
-                            : e.start.dateTime
-                            ? new Date(e.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) + " "
-                            : ""}
-                          {e.summary || "Sem título"}
+                  );
+                })}
+              </div>
+              {/* Grade horária */}
+              {hours.map((hour) => (
+                <div key={hour} className="flex gap-2 min-h-[60px]">
+                  <span className="text-xs text-muted-foreground w-14 pt-2 font-body font-medium text-right pr-2">{hour}</span>
+                  <div className="flex-1 grid grid-cols-7 gap-2">
+                    {weekDays().map((day) => {
+                      const apt = eventForDayHour(day, hour);
+                      return (
+                        <div key={day.toISOString()} className="flex-1 border-t border-border/50 pt-1">
+                          {apt ? (
+                            <div className="bg-primary/10 border-l-3 border-primary rounded-lg p-2 group flex items-start justify-between gap-1 h-full">
+                              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(apt)}>
+                                <p className="text-xs font-medium text-foreground truncate">{apt.summary || "Sem título"}</p>
+                                <span className="flex items-center gap-1 text-[10px] text-primary mt-1">
+                                  <Clock className="w-3 h-3" />
+                                  {apt.start.dateTime && apt.end.dateTime
+                                    ? `${new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} - ${new Date(apt.end.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                                    : apt.start.dateTime
+                                    ? new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                                    : "Dia todo"}
+                                </span>
+                              </div>
+                              <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => openEdit(apt)} className="p-1 hover:bg-primary/20 rounded" title="Editar">
+                                  <Pencil className="w-3 h-3 text-primary" />
+                                </button>
+                                <button onClick={() => setConfirmDeleteId(apt.id)} className="p-1 hover:bg-destructive/20 rounded" title="Excluir">
+                                  <Trash2 className="w-3 h-3 text-destructive" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setCurrentDate(day); openCreate({ date: day, hour }); }}
+                              className="w-full h-full text-left text-[10px] text-muted-foreground/40 hover:text-primary hover:bg-muted/30 rounded px-1 py-1 transition-colors"
+                            >
+                              + Adicionar
+                            </button>
+                          )}
                         </div>
-                      ))}
-                      {dayEvents.length > 3 && (
-                        <div className="text-xs text-muted-foreground">+{dayEvents.length - 3} mais</div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div>
