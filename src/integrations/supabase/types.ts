@@ -249,6 +249,7 @@ export type Database = {
           condition: string | null
           cpf: string | null
           created_at: string
+          diagnosis: string | null
           email: string | null
           id: string
           important_notes: string | null
@@ -264,6 +265,7 @@ export type Database = {
           condition?: string | null
           cpf?: string | null
           created_at?: string
+          diagnosis?: string | null
           email?: string | null
           id?: string
           important_notes?: string | null
@@ -279,6 +281,7 @@ export type Database = {
           condition?: string | null
           cpf?: string | null
           created_at?: string
+          diagnosis?: string | null
           email?: string | null
           id?: string
           important_notes?: string | null

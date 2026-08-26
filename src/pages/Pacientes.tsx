@@ -112,11 +112,12 @@ const Pacientes = () => {
         <div className="grid grid-cols-[1fr_150px_180px_80px_40px_36px] gap-4 px-5 py-3 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider font-body">
           <span>Paciente</span>
           <span>Telefone</span>
-          <span>Condição</span>
+          <span>Diagnóstico</span>
           <span>Sessões</span>
           <span />
           <span />
         </div>
+
         {isLoading ? (
           <div className="py-12 text-center text-muted-foreground text-sm">Carregando...</div>
         ) : filtered.length === 0 ? (
@@ -135,11 +136,12 @@ const Pacientes = () => {
                 <span className="text-sm font-medium text-foreground">{patient.name}</span>
               </div>
               <span className="text-sm text-muted-foreground">{patient.phone ? formatPhone(patient.phone) : "—"}</span>
-              {patient.condition ? (
+              {patient.diagnosis ? (
                 <span className="text-xs font-medium px-3 py-1 rounded-full bg-mint-light text-secondary-foreground w-fit">
-                  {patient.condition}
+                  {patient.diagnosis}
                 </span>
               ) : <span className="text-sm text-muted-foreground">—</span>}
+
               <span className="text-sm text-foreground font-medium">{patient.sessions_count}</span>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
               <button
@@ -174,10 +176,6 @@ const Pacientes = () => {
               <Input value={newForm.email} onChange={(e) => setNewForm({ ...newForm, email: e.target.value })} type="email" className="mt-1" />
             </div>
             <div>
-              <Label>Condição</Label>
-              <Input value={newForm.condition} onChange={(e) => setNewForm({ ...newForm, condition: e.target.value })} placeholder="Ex: Queda Capilar" className="mt-1" />
-            </div>
-            <div>
               <Label>Data de Nascimento</Label>
               <Input value={newForm.birth_date} onChange={(e) => setNewForm({ ...newForm, birth_date: e.target.value })} type="date" className="mt-1" />
             </div>
@@ -186,6 +184,10 @@ const Pacientes = () => {
               <Input className="mt-1" placeholder="000.000.000-00"
                 value={newForm.cpf}
                 onChange={(e) => setNewForm({ ...newForm, cpf: formatCPF(e.target.value) })} />
+            </div>
+            <div>
+              <Label>Queixa inicial</Label>
+              <Input value={newForm.condition} onChange={(e) => setNewForm({ ...newForm, condition: e.target.value })} placeholder="Ex: Queda capilar há 6 meses" className="mt-1" />
             </div>
             <div>
               <Label>Como nos conheceu?</Label>
@@ -206,6 +208,7 @@ const Pacientes = () => {
               </Select>
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNew(false)}>Cancelar</Button>
             <Button onClick={handleCreate} disabled={saving}>{saving ? "Salvando..." : "Cadastrar"}</Button>
