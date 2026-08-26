@@ -112,11 +112,12 @@ const Pacientes = () => {
         <div className="grid grid-cols-[1fr_150px_180px_80px_40px_36px] gap-4 px-5 py-3 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider font-body">
           <span>Paciente</span>
           <span>Telefone</span>
-          <span>Condição</span>
+          <span>Diagnóstico</span>
           <span>Sessões</span>
           <span />
           <span />
         </div>
+
         {isLoading ? (
           <div className="py-12 text-center text-muted-foreground text-sm">Carregando...</div>
         ) : filtered.length === 0 ? (
