@@ -454,7 +454,9 @@ const Agenda = () => {
                             )}
                             <span className="flex items-center gap-1 text-xs text-primary mt-1">
                               <Clock className="w-3 h-3" />
-                              {apt.start.dateTime
+                              {apt.start.dateTime && apt.end.dateTime
+                                ? `${new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} - ${new Date(apt.end.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                                : apt.start.dateTime
                                 ? new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
                                 : "Dia todo"}
                             </span>
