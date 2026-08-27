@@ -271,6 +271,19 @@ const PatientDetail = () => {
       <PrescriptionModal open={showPrescription} onOpenChange={setShowPrescription} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
       <QuoteModal open={showQuote} onOpenChange={setShowQuote} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
       {patient && <EditPatientModal open={showEdit} onOpenChange={setShowEdit} patient={patient} />}
+      <AnamnesisModal
+        open={showAnamnesis}
+        onOpenChange={(o) => { setShowAnamnesis(o); if (!o) setOpenConsultationAfterAnamnesis(false); }}
+        patientId={patient.id}
+        initialData={anamnesis}
+        onSaved={() => {
+          if (openConsultationAfterAnamnesis) {
+            setOpenConsultationAfterAnamnesis(false);
+            setShowConsultation(true);
+          }
+        }}
+      />
+
 
       {/* ── Excluir paciente — passo 1 ── */}
       <AlertDialog open={deleteStep === 1}>
