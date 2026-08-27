@@ -245,6 +245,8 @@ export type Database = {
       }
       patients: {
         Row: {
+          anamnesis: Json | null
+          anamnesis_completed_at: string | null
           birth_date: string | null
           condition: string | null
           cpf: string | null
@@ -261,6 +263,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          anamnesis?: Json | null
+          anamnesis_completed_at?: string | null
           birth_date?: string | null
           condition?: string | null
           cpf?: string | null
@@ -277,6 +281,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          anamnesis?: Json | null
+          anamnesis_completed_at?: string | null
           birth_date?: string | null
           condition?: string | null
           cpf?: string | null
