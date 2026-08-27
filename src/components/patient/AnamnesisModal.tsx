@@ -174,10 +174,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, onSaved }:
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center gap-2 text-primary">
-            <Sparkles className="w-5 h-5" />
-            <DialogTitle className="font-heading text-xl">Anamnese Inicial Tricológica</DialogTitle>
-          </div>
+          <DialogTitle className="font-heading text-xl">Anamnese do Paciente</DialogTitle>
           <DialogDescription className="font-body text-xs">
             Esta anamnese é solicitada na primeira consulta/evolução do paciente para registrar o histórico de saúde. As informações ficam gravadas na ficha clínica.
           </DialogDescription>

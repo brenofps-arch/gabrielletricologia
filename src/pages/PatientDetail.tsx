@@ -202,11 +202,11 @@ const PatientDetail = () => {
         </div>
       )}
 
-      {/* Anamnese inicial */}
+      {/* Anamnese do paciente */}
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-            <span>Anamnese Inicial (1ª Consulta)</span>
+            <span>Anamnese do Paciente</span>
             {patient.anamnesis_completed_at && (
               <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-mint-light text-secondary-foreground">
                 Concluída em {new Date(patient.anamnesis_completed_at).toLocaleDateString("pt-BR")}
