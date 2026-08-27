@@ -60,11 +60,13 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
         phone: form.phone || null,
         email: form.email || null,
         condition: form.condition || null,
+        diagnosis: form.diagnosis || null,
         birth_date: form.birth_date || null,
         referral_source: form.referral_source || null,
         cpf: form.cpf || null,
       })
       .eq("id", patient.id);
+
 
     if (error) {
       toast.error("Erro ao atualizar paciente.");

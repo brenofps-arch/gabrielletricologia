@@ -106,12 +106,27 @@ const PatientDetail = () => {
         </Button>
         <div className="flex-1">
           <h1 className="text-2xl font-heading font-semibold text-foreground">{patient.name}</h1>
-          <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground font-body">
+          <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground font-body flex-wrap">
             {patient.phone && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{formatPhone(patient.phone)}</span>}
             {patient.email && <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" />{patient.email}</span>}
             {patient.birth_date && <span className="flex items-center gap-1"><Cake className="w-3.5 h-3.5" />{new Date(patient.birth_date).toLocaleDateString("pt-BR")}</span>}
             {patient.cpf && <span className="flex items-center gap-1 text-xs">CPF: {patient.cpf}</span>}
+            {patient.referral_source && (
+              <span className="text-xs font-medium px-3 py-1 rounded-full bg-muted text-muted-foreground border border-border">
+                {{
+                  indicacao: "👥 Indicação de paciente",
+                  google: "🔍 Google",
+                  anuncio: "📢 Anúncio",
+                  instagram_organico: "📸 Instagram orgânico",
+                  tiktok: "🎵 TikTok",
+                  indicacao_medico: "🩺 Indicação médica",
+                  retorno: "🔄 Retorno",
+                  outro: "➕ Outro",
+                }[patient.referral_source] ?? patient.referral_source}
+              </span>
+            )}
           </div>
+
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
           <Button variant="outline" size="icon" onClick={() => setShowEdit(true)} title="Editar paciente">
