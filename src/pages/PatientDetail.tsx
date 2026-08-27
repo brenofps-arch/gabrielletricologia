@@ -207,31 +207,39 @@ const PatientDetail = () => {
         </div>
       )}
 
-      {/* Diagnóstico do Paciente — Destaque Clínico */}
-      {patient.diagnosis ? (
-        <div className="bg-mint-light/40 border-2 border-secondary/40 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2 text-xs font-bold text-secondary-foreground uppercase tracking-wider">
-              <Stethoscope className="w-4 h-4 text-primary" />
-              <span>Diagnóstico Clínico</span>
-            </div>
+      {/* Diagnóstico do Paciente — Destaque Clínico com Tipografia Maior */}
+      <div className="bg-mint-light/40 border-2 border-secondary/40 rounded-xl p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2 text-xs font-bold text-secondary-foreground uppercase tracking-wider">
+            <Stethoscope className="w-4 h-4 text-primary" />
+            <span>Diagnóstico Clínico</span>
+          </div>
+          <div className="flex items-center gap-2">
             {patient.sessions_count > 0 && (
               <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-background border border-border text-foreground">
                 {patient.sessions_count} {patient.sessions_count === 1 ? "sessão realizada" : "sessões realizadas"}
               </span>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setShowEdit(true)}
+            >
+              {patient.diagnosis ? "Alterar" : "Definir Diagnóstico"}
+            </Button>
           </div>
+        </div>
+        {patient.diagnosis ? (
           <p className="text-xl font-bold text-foreground tracking-tight font-heading mt-1">
             {patient.diagnosis}
           </p>
-        </div>
-      ) : (
-        patient.sessions_count > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">{patient.sessions_count} sessões realizadas</span>
-          </div>
-        )
-      )}
+        ) : (
+          <p className="text-sm text-muted-foreground font-body italic mt-1">
+            Nenhum diagnóstico definido ainda. Clique em "Definir Diagnóstico" ou preencha durante a evolução clínica.
+          </p>
+        )}
+      </div>
 
       {/* Anamnese do paciente */}
       <div className="bg-card border border-border rounded-xl p-4 transition-all">
