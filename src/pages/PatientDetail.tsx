@@ -186,6 +186,40 @@ const PatientDetail = () => {
         </div>
       )}
 
+      {/* Anamnese inicial */}
+      <div className="bg-card border border-border rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Anamnese inicial
+            {patient.anamnesis_completed_at && (
+              <span className="ml-2 normal-case tracking-normal text-muted-foreground/70">
+                · {new Date(patient.anamnesis_completed_at).toLocaleDateString("pt-BR")}
+              </span>
+            )}
+          </p>
+          <Button variant="ghost" size="sm" onClick={() => setShowAnamnesis(true)}>
+            {anamnesis ? "Editar" : "Preencher"}
+          </Button>
+        </div>
+        {anamnesis ? (
+          <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+            {(Object.keys(anamnesisLabels) as (keyof AnamnesisData)[])
+              .filter((k) => anamnesis[k]?.trim())
+              .map((k) => (
+                <div key={k}>
+                  <p className="text-xs text-muted-foreground">{anamnesisLabels[k]}</p>
+                  <p className="text-sm text-foreground font-body">{anamnesis[k]}</p>
+                </div>
+              ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground font-body">
+            Ainda não preenchida. Será solicitada ao registrar a primeira evolução.
+          </p>
+        )}
+      </div>
+
+
       {/* Diagnóstico + sessões */}
       <div className="flex items-center gap-2 flex-wrap">
         {patient.diagnosis && (
