@@ -12,6 +12,7 @@ import { Pill, Activity, HeartPulse, Users, Calendar, Scissors, Sparkles } from 
 export interface AnamnesisData {
   continuous_medications: string;
   allergies: string;
+  comorbidities: string;
   anabolic_steroids: string;
   topical_testosterone: string;
   previous_surgeries: string;
@@ -35,6 +36,7 @@ export interface AnamnesisData {
 export const emptyAnamnesis: AnamnesisData = {
   continuous_medications: "",
   allergies: "",
+  comorbidities: "",
   anabolic_steroids: "",
   topical_testosterone: "",
   previous_surgeries: "",
@@ -57,6 +59,7 @@ export const emptyAnamnesis: AnamnesisData = {
 export const anamnesisLabels: Record<keyof AnamnesisData, string> = {
   continuous_medications: "Medicamentos de uso contínuo",
   allergies: "Alergias medicamentosas / Alimentares",
+  comorbidities: "Comorbidades (Doenças prévias / atuais)",
   anabolic_steroids: "Usa ou já usou anabolizantes?",
   topical_testosterone: "Faz / já fez reposição tópica com testosterona?",
   previous_surgeries: "Cirurgias prévias",
@@ -89,6 +92,7 @@ interface Props {
 const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
   continuous_medications: ["Nega uso contínuo", "Anticoncepcional", "Anti-hipertensivo", "Tireoide (Levotiroxina)"],
   allergies: ["Nega alergias conhecidas", "Alergia a Dipirona", "Alergia a Sulfas", "Alergia alimentar"],
+  comorbidities: ["Nenhuma comorbidade", "Hipotireoidismo", "Diabetes", "Hipertensão (HAS)", "SOP (Ovários Policísticos)", "Anemia / Ferritina baixa", "Dermatite seborreica", "Psoríase", "Doença autoimune"],
   anabolic_steroids: ["Não usa / Nunca usou", "Uso prévio (passado)", "Uso atual"],
   topical_testosterone: ["Não faz reposição", "Reposição tópica atual", "Reposição tópica prévia"],
   previous_surgeries: ["Nenhuma cirurgia prévia", "Cirurgia bariátrica", "Cirurgia capilar prévia"],
@@ -144,12 +148,27 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
     setSaving(true);
     const saveIsoDate = customDate ? new Date(`${customDate}T12:00:00Z`).toISOString() : new Date().toISOString();
 
+    // Sincroniza automaticamente com notas importantes do paciente (Alergias e Comorbidades)
+    const notesParts: string[] = [];
+    if (form.allergies?.trim()) {
+      notesParts.push(`Alergias: ${form.allergies.trim()}`);
+    }
+    if (form.comorbidities?.trim()) {
+      notesParts.push(`Comorbidades: ${form.comorbidities.trim()}`);
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      anamnesis: form as unknown as Record<string, string>,
+      anamnesis_completed_at: saveIsoDate,
+    };
+
+    if (notesParts.length > 0) {
+      updatePayload.important_notes = notesParts.join(" | ");
+    }
+
     const { error } = await supabase
       .from("patients")
-      .update({
-        anamnesis: form as unknown as Record<string, string>,
-        anamnesis_completed_at: saveIsoDate,
-      })
+      .update(updatePayload)
       .eq("id", patientId);
     setSaving(false);
 
@@ -238,16 +257,17 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
         </div>
 
         <div className="space-y-6 py-2">
-          {/* Seção 1: Medicamentos e Alergias */}
+          {/* Seção 1: Medicamentos, Alergias e Comorbidades */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Pill className="w-4 h-4 text-primary" />
-              <span>Medicamentos e Alergias</span>
+              <span>Medicamentos, Alergias e Comorbidades</span>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              {renderField("continuous_medications", "Ex: Losartana 50mg 1x/dia, anticoncepcional...", true)}
               {renderField("allergies", "Ex: Dipirona, frutos do mar, iodo...", true)}
+              {renderField("comorbidities", "Ex: Hipotireoidismo, SOP, Hipertensão, Anemia...", true)}
             </div>
+            {renderField("continuous_medications", "Ex: Losartana 50mg 1x/dia, anticoncepcional...", true)}
           </div>
 
           {/* Seção 2: Histórico Hormonal, Cirúrgico e Infeccioso */}

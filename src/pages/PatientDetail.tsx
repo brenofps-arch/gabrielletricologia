@@ -186,11 +186,11 @@ const PatientDetail = () => {
       </div>
 
       {/* Important Notes Banner */}
-      <div className="bg-rose-gold-light/50 border border-primary/20 rounded-xl p-4">
+      <div className="bg-rose-gold-light/50 border border-primary/30 rounded-xl p-4 shadow-sm">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <AlertTriangle className="w-4 h-4 text-primary" />
-            Notas Importantes (Alergias / Observações)
+            <span>Notas Importantes (Alergias / Comorbidades / Observações)</span>
           </div>
           <Button variant="ghost" size="sm" onClick={() => {
             if (editingNotes) saveNotes();
@@ -200,10 +200,19 @@ const PatientDetail = () => {
           </Button>
         </div>
         {editingNotes ? (
-          <Textarea value={notesValue} onChange={(e) => setNotesValue(e.target.value)} placeholder="Ex: Alergia a sulfas, gestante, uso de anticoagulantes..." className="bg-card" />
+          <Textarea
+            value={notesValue}
+            onChange={(e) => setNotesValue(e.target.value)}
+            placeholder="Ex: Alergia a Dipirona, Hipotireoidismo, uso de anticoagulantes..."
+            className="bg-card min-h-[70px]"
+          />
         ) : (
-          <p className="text-sm text-muted-foreground font-body">
-            {patient.important_notes || "Nenhuma nota registrada. Clique em 'Editar' para adicionar."}
+          <p className="text-sm font-medium text-foreground font-body leading-relaxed">
+            {patient.important_notes || (
+              <span className="text-muted-foreground font-normal italic">
+                Nenhuma nota registrada. Clique em 'Editar' ou preencha a anamnese para adicionar alergias e comorbidades.
+              </span>
+            )}
           </p>
         )}
       </div>
