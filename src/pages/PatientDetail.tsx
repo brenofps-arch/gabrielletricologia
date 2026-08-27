@@ -213,9 +213,11 @@ const PatientDetail = () => {
               </span>
             )}
           </p>
-          <Button variant="ghost" size="sm" onClick={() => setShowAnamnesis(true)}>
-            {hasCompletedAnamnesis ? "Editar Anamnese" : "Preencher Agora"}
-          </Button>
+          {hasCompletedAnamnesis && (
+            <Button variant="ghost" size="sm" onClick={() => setShowAnamnesis(true)}>
+              Editar Anamnese
+            </Button>
+          )}
         </div>
         {hasCompletedAnamnesis && anamnesis ? (
           <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 pt-1 text-sm">
