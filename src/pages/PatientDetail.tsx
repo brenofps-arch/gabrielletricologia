@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, FileDown, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Plus, FileDown, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2, ChevronDown, ChevronUp, Stethoscope } from "lucide-react";
 import { formatPhone } from "@/lib/utils";import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -195,12 +195,42 @@ const PatientDetail = () => {
         )}
       </div>
 
-      {/* Queixa inicial — guia para a primeira consulta */}
+      {/* Queixa inicial */}
       {patient.condition && (
         <div className="bg-card border border-border rounded-xl p-4">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Queixa inicial</p>
-          <p className="text-sm text-foreground font-body">{patient.condition}</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+            Queixa Inicial
+          </p>
+          <p className="text-base font-medium text-foreground font-body leading-relaxed">
+            {patient.condition}
+          </p>
         </div>
+      )}
+
+      {/* Diagnóstico do Paciente — Destaque Clínico */}
+      {patient.diagnosis ? (
+        <div className="bg-mint-light/40 border-2 border-secondary/40 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2 text-xs font-bold text-secondary-foreground uppercase tracking-wider">
+              <Stethoscope className="w-4 h-4 text-primary" />
+              <span>Diagnóstico Clínico</span>
+            </div>
+            {patient.sessions_count > 0 && (
+              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-background border border-border text-foreground">
+                {patient.sessions_count} {patient.sessions_count === 1 ? "sessão realizada" : "sessões realizadas"}
+              </span>
+            )}
+          </div>
+          <p className="text-xl font-bold text-foreground tracking-tight font-heading mt-1">
+            {patient.diagnosis}
+          </p>
+        </div>
+      ) : (
+        patient.sessions_count > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">{patient.sessions_count} sessões realizadas</span>
+          </div>
+        )
       )}
 
       {/* Anamnese do paciente */}
@@ -267,18 +297,6 @@ const PatientDetail = () => {
               Preencher anamnese
             </Button>
           </div>
-        )}
-      </div>
-
-      {/* Diagnóstico + sessões */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {patient.diagnosis && (
-          <span className="text-xs font-medium px-3 py-1 rounded-full bg-mint-light text-secondary-foreground">
-            Diagnóstico: {patient.diagnosis}
-          </span>
-        )}
-        {patient.sessions_count > 0 && (
-          <span className="text-xs text-muted-foreground">{patient.sessions_count} sessões realizadas</span>
         )}
       </div>
 
