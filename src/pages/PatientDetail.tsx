@@ -19,6 +19,7 @@ import EditPatientModal from "@/components/patient/EditPatientModal";
 import QuoteModal from "@/components/patient/QuoteModal";
 import QuoteHistory from "@/components/patient/QuoteHistory";
 import PaymentHistory from "@/components/patient/PaymentHistory";
+import AnamnesisModal, { AnamnesisData, anamnesisLabels } from "@/components/patient/AnamnesisModal";
 
 const PatientDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +31,9 @@ const PatientDetail = () => {
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState("");
   const [showEdit, setShowEdit] = useState(false);
+  const [showAnamnesis, setShowAnamnesis] = useState(false);
+  const [openConsultationAfterAnamnesis, setOpenConsultationAfterAnamnesis] = useState(false);
+
 
   // Exclusão do paciente — dupla confirmação
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
@@ -83,6 +87,17 @@ const PatientDetail = () => {
     queryClient.invalidateQueries({ queryKey: ["consultations", id] });
     queryClient.invalidateQueries({ queryKey: ["prescriptions", id] });
     queryClient.invalidateQueries({ queryKey: ["quotes", id] });
+  };
+
+  const anamnesis = (patient?.anamnesis ?? null) as AnamnesisData | null;
+
+  const handleNewConsultation = () => {
+    if (!anamnesis) {
+      setOpenConsultationAfterAnamnesis(true);
+      setShowAnamnesis(true);
+    } else {
+      setShowConsultation(true);
+    }
   };
 
 
@@ -144,9 +159,10 @@ const PatientDetail = () => {
           <Button variant="outline" className="gap-1.5" onClick={() => setShowQuote(true)}>
             <Receipt className="w-4 h-4" /> Gerar Orçamento
           </Button>
-          <Button className="gap-1.5" onClick={() => setShowConsultation(true)}>
+          <Button className="gap-1.5" onClick={handleNewConsultation}>
             <Plus className="w-4 h-4" /> Nova Evolução
           </Button>
+
         </div>
       </div>
 
@@ -180,6 +196,40 @@ const PatientDetail = () => {
           <p className="text-sm text-foreground font-body">{patient.condition}</p>
         </div>
       )}
+
+      {/* Anamnese inicial */}
+      <div className="bg-card border border-border rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Anamnese inicial
+            {patient.anamnesis_completed_at && (
+              <span className="ml-2 normal-case tracking-normal text-muted-foreground/70">
+                · {new Date(patient.anamnesis_completed_at).toLocaleDateString("pt-BR")}
+              </span>
+            )}
+          </p>
+          <Button variant="ghost" size="sm" onClick={() => setShowAnamnesis(true)}>
+            {anamnesis ? "Editar" : "Preencher"}
+          </Button>
+        </div>
+        {anamnesis ? (
+          <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+            {(Object.keys(anamnesisLabels) as (keyof AnamnesisData)[])
+              .filter((k) => anamnesis[k]?.trim())
+              .map((k) => (
+                <div key={k}>
+                  <p className="text-xs text-muted-foreground">{anamnesisLabels[k]}</p>
+                  <p className="text-sm text-foreground font-body">{anamnesis[k]}</p>
+                </div>
+              ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground font-body">
+            Ainda não preenchida. Será solicitada ao registrar a primeira evolução.
+          </p>
+        )}
+      </div>
+
 
       {/* Diagnóstico + sessões */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -221,6 +271,19 @@ const PatientDetail = () => {
       <PrescriptionModal open={showPrescription} onOpenChange={setShowPrescription} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
       <QuoteModal open={showQuote} onOpenChange={setShowQuote} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
       {patient && <EditPatientModal open={showEdit} onOpenChange={setShowEdit} patient={patient} />}
+      <AnamnesisModal
+        open={showAnamnesis}
+        onOpenChange={(o) => { setShowAnamnesis(o); if (!o) setOpenConsultationAfterAnamnesis(false); }}
+        patientId={patient.id}
+        initialData={anamnesis}
+        onSaved={() => {
+          if (openConsultationAfterAnamnesis) {
+            setOpenConsultationAfterAnamnesis(false);
+            setShowConsultation(true);
+          }
+        }}
+      />
+
 
       {/* ── Excluir paciente — passo 1 ── */}
       <AlertDialog open={deleteStep === 1}>
