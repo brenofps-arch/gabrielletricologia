@@ -290,6 +290,7 @@ const PatientDetail = () => {
         onOpenChange={(o) => { setShowAnamnesis(o); if (!o) setOpenConsultationAfterAnamnesis(false); }}
         patientId={patient.id}
         initialData={anamnesis}
+        initialDate={patient.anamnesis_completed_at}
         onSaved={() => {
           if (openConsultationAfterAnamnesis) {
             setOpenConsultationAfterAnamnesis(false);

@@ -4,11 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pill, AlertCircle, Activity, HeartPulse, Sparkles, Users, Dumbbell, Wine, Cigarette, Droplets, Moon } from "lucide-react";
+import { Pill, Activity, HeartPulse, Users, Calendar, Scissors, Sparkles } from "lucide-react";
 
 export interface AnamnesisData {
   continuous_medications: string;
@@ -24,6 +23,13 @@ export interface AnamnesisData {
   supplements: string;
   sleep_quality: string;
   family_history: string;
+  // HairCare (Tricologia)
+  haircare_washing_frequency: string;
+  haircare_chemical_procedures: string;
+  haircare_thermal_tools: string;
+  haircare_routine_products: string;
+  haircare_scalp_symptoms: string;
+  haircare_previous_treatments: string;
 }
 
 export const emptyAnamnesis: AnamnesisData = {
@@ -40,6 +46,12 @@ export const emptyAnamnesis: AnamnesisData = {
   supplements: "",
   sleep_quality: "",
   family_history: "",
+  haircare_washing_frequency: "",
+  haircare_chemical_procedures: "",
+  haircare_thermal_tools: "",
+  haircare_routine_products: "",
+  haircare_scalp_symptoms: "",
+  haircare_previous_treatments: "",
 };
 
 export const anamnesisLabels: Record<keyof AnamnesisData, string> = {
@@ -56,6 +68,13 @@ export const anamnesisLabels: Record<keyof AnamnesisData, string> = {
   supplements: "Suplementos alimentares",
   sleep_quality: "Qualidade do sono",
   family_history: "Histórico familiar",
+  // HairCare
+  haircare_washing_frequency: "Frequência de lavagem do couro cabeludo",
+  haircare_chemical_procedures: "Procedimentos químicos (tintura, descoloração, progressiva, botox...)",
+  haircare_thermal_tools: "Fontes de calor (secador, chapinha, babyliss...)",
+  haircare_routine_products: "Produtos em uso / Rotina capilar (shampoos, tônicos, óleos...)",
+  haircare_scalp_symptoms: "Sintomas no couro cabeludo (coceira, descamação, dor/tricodinia, oleosidade...)",
+  haircare_previous_treatments: "Tratamentos capilares prévios (Minoxidil, MMP, LED, etc.)",
 };
 
 interface Props {
@@ -63,6 +82,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   patientId: string;
   initialData?: Partial<AnamnesisData> | null;
+  initialDate?: string | null;
   onSaved?: () => void;
 }
 
@@ -80,16 +100,34 @@ const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
   supplements: ["Nenhum suplemento", "Whey protein / Creatina", "Polivitamínico / Vitamina D", "Biotina / Ferro"],
   sleep_quality: ["Bom (7-8h reparador)", "Ruim / Insônia", "Fragmentado (acorda cansado)"],
   family_history: ["Sem histórico relevante", "Calvície paterna", "Calvície materna", "Calvície bilateral (pai e mãe)", "Hipotireoidismo familiar"],
+  // HairCare quick options
+  haircare_washing_frequency: ["Diária", "Dias alternados", "2 a 3x por semana", "1x por semana"],
+  haircare_chemical_procedures: ["Nenhuma química", "Coloração / Tintura", "Luzes / Descoloração", "Progressiva / Botox capilar", "Alisamento definitivo"],
+  haircare_thermal_tools: ["Não usa fontes de calor", "Secador com protetor térmico", "Secador frequente", "Chapinha / Babyliss frequente"],
+  haircare_routine_products: ["Shampoo neutro / suave", "Shampoo anticaspa", "Tônico antiqueda", "Máscara de tratamento", "Óleos vegetais"],
+  haircare_scalp_symptoms: ["Nenhum sintoma", "Queda acentuada", "Afinamento dos fios", "Prurido (coceira)", "Descamação / Caspa", "Oleosidade excessiva", "Tricodinia (dor/sensibilidade no couro)"],
+  haircare_previous_treatments: ["Nenhum tratamento prévio", "Minoxidil tópico", "Minoxidil oral", "MMP capilar", "Intradermoterapia", "LEDterapia", "Transplante capilar"],
 };
 
-const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, onSaved }: Props) => {
+const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDate, onSaved }: Props) => {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<AnamnesisData>(emptyAnamnesis);
+  const [customDate, setCustomDate] = useState<string>(() => {
+    if (initialDate) return new Date(initialDate).toISOString().slice(0, 10);
+    return new Date().toISOString().slice(0, 10);
+  });
 
   useEffect(() => {
-    if (open) setForm({ ...emptyAnamnesis, ...(initialData || {}) });
-  }, [open, initialData]);
+    if (open) {
+      setForm({ ...emptyAnamnesis, ...(initialData || {}) });
+      if (initialDate) {
+        setCustomDate(new Date(initialDate).toISOString().slice(0, 10));
+      } else {
+        setCustomDate(new Date().toISOString().slice(0, 10));
+      }
+    }
+  }, [open, initialData, initialDate]);
 
   const set = (k: keyof AnamnesisData, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -104,11 +142,13 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, onSaved }:
 
   const handleSave = async () => {
     setSaving(true);
+    const saveIsoDate = customDate ? new Date(`${customDate}T12:00:00Z`).toISOString() : new Date().toISOString();
+
     const { error } = await supabase
       .from("patients")
       .update({
         anamnesis: form as unknown as Record<string, string>,
-        anamnesis_completed_at: new Date().toISOString(),
+        anamnesis_completed_at: saveIsoDate,
       })
       .eq("id", patientId);
     setSaving(false);
@@ -117,7 +157,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, onSaved }:
       toast.error("Erro ao salvar a anamnese.");
       return;
     }
-    toast.success("Anamnese inicial salva com sucesso!");
+    toast.success("Anamnese do paciente salva com sucesso!");
     queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
     onOpenChange(false);
     onSaved?.();
@@ -137,8 +177,11 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, onSaved }:
               type="button"
               key={opt}
               onClick={() => {
-                // If it's a single choice like smoking or alcohol, replace; otherwise append if multiline
-                if (!multiline && (k === "smoking" || k === "alcohol" || k === "physical_activity" || k === "water_intake" || k === "sleep_quality" || k === "anabolic_steroids" || k === "topical_testosterone")) {
+                const singleChoiceKeys: (keyof AnamnesisData)[] = [
+                  "smoking", "alcohol", "physical_activity", "water_intake", "sleep_quality",
+                  "anabolic_steroids", "topical_testosterone", "haircare_washing_frequency"
+                ];
+                if (!multiline && singleChoiceKeys.includes(k)) {
                   set(k, opt);
                 } else {
                   appendOrSet(k, opt);
@@ -176,12 +219,42 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, onSaved }:
         <DialogHeader>
           <DialogTitle className="font-heading text-xl">Anamnese do Paciente</DialogTitle>
           <DialogDescription className="font-body text-xs">
-            Esta anamnese é solicitada na primeira consulta/evolução do paciente para registrar o histórico de saúde. As informações ficam gravadas na ficha clínica.
+            Preencha ou edite as informações clínicas e tricológicas do paciente. As informações ficam gravadas na ficha clínica.
           </DialogDescription>
         </DialogHeader>
 
+        {/* Data da Anamnese */}
+        <div className="flex items-center justify-between bg-muted/30 border border-border/80 p-3 rounded-xl">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-primary" />
+            <Label className="text-xs font-semibold text-foreground">Data da Anamnese:</Label>
+          </div>
+          <Input
+            type="date"
+            value={customDate}
+            onChange={(e) => setCustomDate(e.target.value)}
+            className="w-44 h-8 text-xs bg-background"
+          />
+        </div>
+
         <div className="space-y-6 py-2">
-          {/* Seção 1: Medicamentos e Alergias */}
+          {/* Seção 1: HairCare - Cuidados com o Cabelo e Couro Cabeludo */}
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+              <Scissors className="w-4 h-4" />
+              <span>HairCare (Cuidados com Cabelo e Couro Cabeludo)</span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {renderField("haircare_washing_frequency", "Ex: Diária / Dias alternados...")}
+              {renderField("haircare_thermal_tools", "Ex: Secador após lavagem com protetor térmico...")}
+              {renderField("haircare_chemical_procedures", "Ex: Luzes a cada 6 meses, botox capilar...", true)}
+              {renderField("haircare_routine_products", "Ex: Shampoo antiqueda, tônico noturno, máscara...", true)}
+              {renderField("haircare_scalp_symptoms", "Ex: Coceira leve, descamação, dor no topo da cabeça...", true)}
+              {renderField("haircare_previous_treatments", "Ex: Minoxidil 5% tópico por 1 ano, MMP prévio...", true)}
+            </div>
+          </div>
+
+          {/* Seção 2: Medicamentos e Alergias */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Pill className="w-4 h-4 text-primary" />
@@ -193,7 +266,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, onSaved }:
             </div>
           </div>
 
-          {/* Seção 2: Histórico Hormonal, Cirúrgico e Infeccioso */}
+          {/* Seção 3: Histórico Hormonal, Cirúrgico e Infeccioso */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <HeartPulse className="w-4 h-4 text-primary" />
@@ -207,7 +280,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, onSaved }:
             </div>
           </div>
 
-          {/* Seção 3: Hábitos e Vícios */}
+          {/* Seção 4: Hábitos e Vícios */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Activity className="w-4 h-4 text-primary" />
@@ -223,7 +296,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, onSaved }:
             </div>
           </div>
 
-          {/* Seção 4: Histórico Familiar */}
+          {/* Seção 5: Histórico Familiar */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Users className="w-4 h-4 text-primary" />
