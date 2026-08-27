@@ -122,6 +122,7 @@ const QuoteHistory = ({ patientId, patientName }: Props) => {
     if (qErr) { toast.error("Erro ao salvar pagamento."); setSaving(false); return; }
 
     // 2. Registrar no histórico geral de pagamentos
+    const isPaidStatus = payForm.payment_status === "paid" || payForm.payment_status === "partial";
     const { error: pErr } = await supabase.from("payments").insert({
       user_id: user!.id,
       patient_id: patientId,
@@ -129,15 +130,19 @@ const QuoteHistory = ({ patientId, patientName }: Props) => {
       amount: Number(payForm.paid_amount),
       payment_method: payForm.payment_method,
       payment_date: payForm.payment_date,
-      description: `Orçamento de ${new Date(payTarget.created_at).toLocaleDateString("pt-BR")}`,
-      notes: payForm.payment_notes,
+      status: isPaidStatus ? "paid" : "pending",
+      paid_at: isPaidStatus ? new Date().toISOString() : null,
+      description: `Pagamento de Orçamento / Protocolo (${new Date(payTarget.created_at).toLocaleDateString("pt-BR")})`,
+      notes: payForm.payment_notes || null,
     });
 
-    if (pErr) toast.error("Pagamento salvo, mas falhou ao registrar no histórico.");
+    if (pErr) toast.error("Pagamento salvo no orçamento, mas falhou ao registrar no histórico.");
     else toast.success("Pagamento registrado com sucesso!");
 
     queryClient.invalidateQueries({ queryKey: ["quotes", patientId] });
     queryClient.invalidateQueries({ queryKey: ["payments", patientId] });
+    queryClient.invalidateQueries({ queryKey: ["payments-all"] });
+    queryClient.invalidateQueries({ queryKey: ["quotes-all"] });
     setPayTarget(null);
     setSaving(false);
   };
