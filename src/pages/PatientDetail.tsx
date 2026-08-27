@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, FileDown, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, FileDown, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { formatPhone } from "@/lib/utils";import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,6 +33,7 @@ const PatientDetail = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [showAnamnesis, setShowAnamnesis] = useState(false);
   const [openConsultationAfterAnamnesis, setOpenConsultationAfterAnamnesis] = useState(false);
+  const [anamnesisCollapsed, setAnamnesisCollapsed] = useState(true);
 
 
   // Exclusão do paciente — dupla confirmação
@@ -203,35 +204,64 @@ const PatientDetail = () => {
       )}
 
       {/* Anamnese do paciente */}
-      <div className="bg-card border border-border rounded-xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-            <span>Anamnese do Paciente</span>
-            {patient.anamnesis_completed_at && (
-              <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-mint-light text-secondary-foreground">
-                Concluída em {new Date(patient.anamnesis_completed_at).toLocaleDateString("pt-BR")}
-              </span>
-            )}
-          </p>
-          {hasCompletedAnamnesis && (
-            <Button variant="ghost" size="sm" onClick={() => setShowAnamnesis(true)}>
-              Editar Anamnese
-            </Button>
-          )}
-        </div>
-        {hasCompletedAnamnesis && anamnesis ? (
-          <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 pt-1 text-sm">
-            {(Object.keys(anamnesisLabels) as (keyof AnamnesisData)[])
-              .filter((k) => anamnesis[k]?.trim())
-              .map((k) => (
-                <div key={k} className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
-                  <p className="text-xs font-medium text-muted-foreground">{anamnesisLabels[k]}</p>
-                  <p className="text-sm font-medium text-foreground font-body mt-0.5">{anamnesis[k]}</p>
-                </div>
-              ))}
+      <div className="bg-card border border-border rounded-xl p-4 transition-all">
+        <div className="flex items-center justify-between">
+          <div
+            className="flex items-center gap-2 cursor-pointer select-none"
+            onClick={() => hasCompletedAnamnesis && setAnamnesisCollapsed(!anamnesisCollapsed)}
+          >
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <span>Anamnese do Paciente</span>
+              {patient.anamnesis_completed_at && (
+                <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-mint-light text-secondary-foreground">
+                  Concluída em {new Date(patient.anamnesis_completed_at).toLocaleDateString("pt-BR")}
+                </span>
+              )}
+            </p>
           </div>
+
+          <div className="flex items-center gap-1">
+            {hasCompletedAnamnesis && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setAnamnesisCollapsed(!anamnesisCollapsed)}
+                >
+                  {anamnesisCollapsed ? (
+                    <>
+                      <ChevronDown className="w-4 h-4" /> Ver Anamnese
+                    </>
+                  ) : (
+                    <>
+                      <ChevronUp className="w-4 h-4" /> Recolher
+                    </>
+                  )}
+                </Button>
+                <Button variant="ghost" size="sm" className="text-xs" onClick={() => setShowAnamnesis(true)}>
+                  Editar Anamnese
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {hasCompletedAnamnesis && anamnesis ? (
+          !anamnesisCollapsed && (
+            <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 pt-3 mt-3 border-t border-border/60 text-sm animate-fade-in">
+              {(Object.keys(anamnesisLabels) as (keyof AnamnesisData)[])
+                .filter((k) => anamnesis[k]?.trim())
+                .map((k) => (
+                  <div key={k} className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                    <p className="text-xs font-medium text-muted-foreground">{anamnesisLabels[k]}</p>
+                    <p className="text-sm font-medium text-foreground font-body mt-0.5">{anamnesis[k]}</p>
+                  </div>
+                ))}
+            </div>
+          )
         ) : (
-          <div className="flex items-center justify-between py-2 text-sm text-muted-foreground font-body">
+          <div className="flex items-center justify-between pt-2 text-sm text-muted-foreground font-body">
             <span>Ainda não preenchida. Será solicitada automaticamente ao clicar em <strong>Inserir evolução</strong>.</span>
             <Button size="sm" variant="outline" onClick={() => { setOpenConsultationAfterAnamnesis(false); setShowAnamnesis(true); }}>
               Preencher anamnese
