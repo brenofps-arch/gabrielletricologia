@@ -1,13 +1,15 @@
-import { Calendar, FileText, Stethoscope, Plus } from "lucide-react";
+import { Calendar, FileText, Stethoscope, Plus, Pencil, Trash2, Pill, Activity } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 
 interface Props {
   consultations: Tables<"consultations">[];
   onNewConsultation?: () => void;
+  onEditConsultation?: (consultation: Tables<"consultations">) => void;
+  onDeleteConsultation?: (consultationId: string) => void;
 }
 
-const ConsultationTimeline = ({ consultations, onNewConsultation }: Props) => {
+const ConsultationTimeline = ({ consultations, onNewConsultation, onEditConsultation, onDeleteConsultation }: Props) => {
   if (consultations.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground bg-card border border-border rounded-xl p-8">
@@ -30,31 +32,87 @@ const ConsultationTimeline = ({ consultations, onNewConsultation }: Props) => {
       {consultations.map((c) => (
         <div key={c.id} className="relative pl-8 pb-6 border-l-2 border-border last:border-l-0 last:pb-0">
           <div className="absolute left-[-9px] top-0 w-4 h-4 rounded-full bg-primary border-2 border-card" />
-          <div className="bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-              <Calendar className="w-3.5 h-3.5" />
-              {new Date(c.consultation_date).toLocaleDateString("pt-BR")}
+          <div className="bg-card rounded-xl border border-border p-4 shadow-sm hover:border-border/80 transition-colors">
+            {/* Header com Data e Ações de Edição */}
+            <div className="flex items-center justify-between text-xs text-muted-foreground mb-3 pb-2 border-b border-border/50">
+              <div className="flex items-center gap-2 font-medium text-foreground">
+                <Calendar className="w-4 h-4 text-primary" />
+                <span className="text-sm font-semibold">
+                  Consulta de {new Date(c.consultation_date).toLocaleDateString("pt-BR")}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                {onEditConsultation && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2.5 text-xs gap-1.5 text-foreground hover:bg-muted"
+                    onClick={() => onEditConsultation(c)}
+                  >
+                    <Pencil className="w-3.5 h-3.5" /> Editar Consulta
+                  </Button>
+                )}
+                {onDeleteConsultation && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                    title="Excluir consulta"
+                    onClick={() => onDeleteConsultation(c.id)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
-            {c.diagnosis && (
-              <p className="text-sm font-medium text-foreground mb-1">
-                <span className="text-muted-foreground">Diagnóstico: </span>{c.diagnosis}
-              </p>
-            )}
-            {c.chief_complaint && (
-              <p className="text-sm text-muted-foreground">
-                <span className="font-medium">Queixa: </span>{c.chief_complaint}
-              </p>
-            )}
-            {c.treatment_plan && (
-              <p className="text-sm text-muted-foreground mt-1">
-                <span className="font-medium">Conduta: </span>{c.treatment_plan}
-              </p>
-            )}
-            {c.observations && (
-              <p className="text-xs text-muted-foreground mt-2 italic">
-                <FileText className="w-3 h-3 inline mr-1" />{c.observations}
-              </p>
-            )}
+
+            {/* Conteúdo Clínico */}
+            <div className="space-y-2 text-sm">
+              {c.diagnosis && (
+                <div className="p-2.5 rounded-lg bg-mint-light/40 border border-secondary/30">
+                  <p className="text-xs font-semibold text-secondary-foreground uppercase tracking-wider">Diagnóstico</p>
+                  <p className="font-bold text-foreground font-heading mt-0.5">{c.diagnosis}</p>
+                </div>
+              )}
+
+              {c.chief_complaint && (
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Queixa</span>
+                  <p className="text-foreground font-body mt-0.5">{c.chief_complaint}</p>
+                </div>
+              )}
+
+              {c.physical_exam && (
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Exame Físico (Tricológico)</span>
+                  <p className="text-foreground font-body mt-0.5">{c.physical_exam}</p>
+                </div>
+              )}
+
+              {c.treatment_plan && (
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Conduta / Plano Terapêutico</span>
+                  <p className="text-foreground font-body mt-0.5">{c.treatment_plan}</p>
+                </div>
+              )}
+
+              {c.prescription_notes && (
+                <div className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                  <span className="text-xs font-semibold text-primary uppercase tracking-wider flex items-center gap-1">
+                    <Pill className="w-3.5 h-3.5" /> Prescrição Registrada
+                  </span>
+                  <p className="text-foreground font-body mt-0.5 whitespace-pre-line">{c.prescription_notes}</p>
+                </div>
+              )}
+
+              {c.observations && (
+                <div className="pt-1">
+                  <p className="text-xs text-muted-foreground italic flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5 inline" /> {c.observations}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ))}

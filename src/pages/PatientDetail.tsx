@@ -20,12 +20,14 @@ import QuoteModal from "@/components/patient/QuoteModal";
 import QuoteHistory from "@/components/patient/QuoteHistory";
 import PaymentHistory from "@/components/patient/PaymentHistory";
 import AnamnesisModal, { AnamnesisData, anamnesisLabels } from "@/components/patient/AnamnesisModal";
+import type { Tables } from "@/integrations/supabase/types";
 
 const PatientDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showConsultation, setShowConsultation] = useState(false);
+  const [editingConsultation, setEditingConsultation] = useState<Tables<"consultations"> | null>(null);
   const [showPrescription, setShowPrescription] = useState(false);
   const [showQuote, setShowQuote] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
@@ -88,6 +90,17 @@ const PatientDetail = () => {
     queryClient.invalidateQueries({ queryKey: ["consultations", id] });
     queryClient.invalidateQueries({ queryKey: ["prescriptions", id] });
     queryClient.invalidateQueries({ queryKey: ["quotes", id] });
+  };
+
+  const handleDeleteConsultation = async (consultationId: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta consulta do histórico?")) return;
+    const { error } = await supabase.from("consultations").delete().eq("id", consultationId);
+    if (error) {
+      toast.error("Erro ao excluir consulta.");
+    } else {
+      toast.success("Consulta excluída com sucesso.");
+      refresh();
+    }
   };
 
   const anamnesis = (patient?.anamnesis ?? null) as AnamnesisData | null;
@@ -317,7 +330,15 @@ const PatientDetail = () => {
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
         </TabsList>
         <TabsContent value="timeline" className="mt-4">
-          <ConsultationTimeline consultations={consultations} onNewConsultation={handleNewConsultation} />
+          <ConsultationTimeline
+            consultations={consultations}
+            onNewConsultation={handleNewConsultation}
+            onEditConsultation={(c) => {
+              setEditingConsultation(c);
+              setShowConsultation(true);
+            }}
+            onDeleteConsultation={handleDeleteConsultation}
+          />
         </TabsContent>
         <TabsContent value="medications" className="mt-4">
           <MedicationHistory patientId={patient.id} />
@@ -333,8 +354,12 @@ const PatientDetail = () => {
       {/* Modals */}
       <NewConsultationModal
         open={showConsultation}
-        onOpenChange={setShowConsultation}
+        onOpenChange={(o) => {
+          setShowConsultation(o);
+          if (!o) setEditingConsultation(null);
+        }}
         patientId={patient.id}
+        consultation={editingConsultation}
         anamnesis={hasCompletedAnamnesis ? anamnesis : null}
         onSuccess={refresh}
       />
