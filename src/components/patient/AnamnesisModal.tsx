@@ -238,23 +238,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
         </div>
 
         <div className="space-y-6 py-2">
-          {/* Seção 1: HairCare - Cuidados com o Cabelo e Couro Cabeludo */}
-          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-              <Scissors className="w-4 h-4" />
-              <span>HairCare (Cuidados com Cabelo e Couro Cabeludo)</span>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {renderField("haircare_washing_frequency", "Ex: Diária / Dias alternados...")}
-              {renderField("haircare_thermal_tools", "Ex: Secador após lavagem com protetor térmico...")}
-              {renderField("haircare_chemical_procedures", "Ex: Luzes a cada 6 meses, botox capilar...", true)}
-              {renderField("haircare_routine_products", "Ex: Shampoo antiqueda, tônico noturno, máscara...", true)}
-              {renderField("haircare_scalp_symptoms", "Ex: Coceira leve, descamação, dor no topo da cabeça...", true)}
-              {renderField("haircare_previous_treatments", "Ex: Minoxidil 5% tópico por 1 ano, MMP prévio...", true)}
-            </div>
-          </div>
-
-          {/* Seção 2: Medicamentos e Alergias */}
+          {/* Seção 1: Medicamentos e Alergias */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Pill className="w-4 h-4 text-primary" />
@@ -266,7 +250,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
             </div>
           </div>
 
-          {/* Seção 3: Histórico Hormonal, Cirúrgico e Infeccioso */}
+          {/* Seção 2: Histórico Hormonal, Cirúrgico e Infeccioso */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <HeartPulse className="w-4 h-4 text-primary" />
@@ -280,7 +264,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
             </div>
           </div>
 
-          {/* Seção 4: Hábitos e Vícios */}
+          {/* Seção 3: Hábitos e Vícios */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Activity className="w-4 h-4 text-primary" />
@@ -296,13 +280,29 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
             </div>
           </div>
 
-          {/* Seção 5: Histórico Familiar */}
+          {/* Seção 4: Histórico Familiar */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Users className="w-4 h-4 text-primary" />
               <span>Histórico Familiar</span>
             </div>
             {renderField("family_history", "Ex: Pai com calvície aos 30 anos, mãe com hipotireoidismo...", true)}
+          </div>
+
+          {/* Seção 5: HairCare - Cuidados com o Cabelo e Couro Cabeludo (Por último) */}
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+              <Scissors className="w-4 h-4" />
+              <span>HairCare (Cuidados com Cabelo e Couro Cabeludo)</span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {renderField("haircare_washing_frequency", "Ex: Diária / Dias alternados...")}
+              {renderField("haircare_thermal_tools", "Ex: Secador após lavagem com protetor térmico...")}
+              {renderField("haircare_chemical_procedures", "Ex: Luzes a cada 6 meses, botox capilar...", true)}
+              {renderField("haircare_routine_products", "Ex: Shampoo antiqueda, tônico noturno, máscara...", true)}
+              {renderField("haircare_scalp_symptoms", "Ex: Coceira leve, descamação, dor no topo da cabeça...", true)}
+              {renderField("haircare_previous_treatments", "Ex: Minoxidil 5% tópico por 1 ano, MMP prévio...", true)}
+            </div>
           </div>
         </div>
 
