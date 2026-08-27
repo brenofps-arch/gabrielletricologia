@@ -148,9 +148,10 @@ const PatientDetail = () => {
           <Button variant="outline" className="gap-1.5" onClick={() => setShowQuote(true)}>
             <Receipt className="w-4 h-4" /> Gerar Orçamento
           </Button>
-          <Button className="gap-1.5" onClick={() => setShowConsultation(true)}>
+          <Button className="gap-1.5" onClick={handleNewConsultation}>
             <Plus className="w-4 h-4" /> Nova Evolução
           </Button>
+
         </div>
       </div>
 
