@@ -79,10 +79,12 @@ const PatientDetail = () => {
   };
 
   const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["patient", id] });
     queryClient.invalidateQueries({ queryKey: ["consultations", id] });
     queryClient.invalidateQueries({ queryKey: ["prescriptions", id] });
     queryClient.invalidateQueries({ queryKey: ["quotes", id] });
   };
+
 
   if (loadingPatient) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando...</div>;
@@ -171,29 +173,26 @@ const PatientDetail = () => {
         )}
       </div>
 
-      {/* Condition badge + origem */}
+      {/* Queixa inicial — guia para a primeira consulta */}
+      {patient.condition && (
+        <div className="bg-card border border-border rounded-xl p-4">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Queixa inicial</p>
+          <p className="text-sm text-foreground font-body">{patient.condition}</p>
+        </div>
+      )}
+
+      {/* Diagnóstico + sessões */}
       <div className="flex items-center gap-2 flex-wrap">
-        {patient.condition && (
-          <span className="text-xs font-medium px-3 py-1 rounded-full bg-mint-light text-secondary-foreground">{patient.condition}</span>
+        {patient.diagnosis && (
+          <span className="text-xs font-medium px-3 py-1 rounded-full bg-mint-light text-secondary-foreground">
+            Diagnóstico: {patient.diagnosis}
+          </span>
         )}
         {patient.sessions_count > 0 && (
           <span className="text-xs text-muted-foreground">{patient.sessions_count} sessões realizadas</span>
         )}
-        {patient.referral_source && (
-          <span className="text-xs font-medium px-3 py-1 rounded-full bg-muted text-muted-foreground border border-border">
-            {{
-              indicacao: "👥 Indicação de paciente",
-              google: "🔍 Google",
-              anuncio: "📢 Anúncio",
-              instagram_organico: "📸 Instagram orgânico",
-              tiktok: "🎵 TikTok",
-              indicacao_medico: "🩺 Indicação médica",
-              retorno: "🔄 Retorno",
-              outro: "➕ Outro",
-            }[patient.referral_source] ?? patient.referral_source}
-          </span>
-        )}
       </div>
+
 
       {/* Tabs */}
       <Tabs defaultValue="timeline" className="w-full">
