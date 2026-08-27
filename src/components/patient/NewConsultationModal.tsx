@@ -40,6 +40,12 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, onSuccess }: Prop
       ...form,
     });
 
+    // Atualiza o diagnóstico na ficha do paciente quando preenchido na evolução
+    if (!error && form.diagnosis.trim()) {
+      await supabase.from("patients").update({ diagnosis: form.diagnosis.trim() }).eq("id", patientId);
+    }
+
+
     if (error) {
       toast.error("Erro ao salvar consulta.");
     } else {

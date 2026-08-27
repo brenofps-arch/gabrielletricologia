@@ -20,6 +20,7 @@ interface EditPatientModalProps {
     phone: string | null;
     email: string | null;
     condition: string | null;
+    diagnosis: string | null;
     birth_date: string | null;
     referral_source: string | null;
     cpf: string | null;
@@ -30,7 +31,7 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    name: "", phone: "", email: "", condition: "", birth_date: "", referral_source: "", cpf: "",
+    name: "", phone: "", email: "", condition: "", diagnosis: "", birth_date: "", referral_source: "", cpf: "",
   });
 
   useEffect(() => {
@@ -40,12 +41,14 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
         phone: patient.phone || "",
         email: patient.email || "",
         condition: patient.condition || "",
+        diagnosis: patient.diagnosis || "",
         birth_date: patient.birth_date || "",
         referral_source: patient.referral_source || "",
         cpf: patient.cpf || "",
       });
     }
   }, [open, patient]);
+
 
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Nome é obrigatório."); return; }
@@ -57,11 +60,13 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
         phone: form.phone || null,
         email: form.email || null,
         condition: form.condition || null,
+        diagnosis: form.diagnosis || null,
         birth_date: form.birth_date || null,
         referral_source: form.referral_source || null,
         cpf: form.cpf || null,
       })
       .eq("id", patient.id);
+
 
     if (error) {
       toast.error("Erro ao atualizar paciente.");
