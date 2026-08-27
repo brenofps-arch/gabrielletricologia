@@ -1,16 +1,26 @@
-import { Calendar, FileText, Stethoscope } from "lucide-react";
+import { Calendar, FileText, Stethoscope, Plus } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   consultations: Tables<"consultations">[];
+  onNewConsultation?: () => void;
 }
 
-const ConsultationTimeline = ({ consultations }: Props) => {
+const ConsultationTimeline = ({ consultations, onNewConsultation }: Props) => {
   if (consultations.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <Stethoscope className="w-10 h-10 mx-auto mb-3 opacity-40" />
-        <p className="font-body text-sm">Nenhuma consulta registrada ainda.</p>
+      <div className="text-center py-12 text-muted-foreground bg-card border border-border rounded-xl p-8">
+        <Stethoscope className="w-10 h-10 mx-auto mb-3 opacity-40 text-primary" />
+        <p className="font-body text-sm font-medium text-foreground mb-1">Nenhuma consulta registrada ainda.</p>
+        <p className="font-body text-xs text-muted-foreground mb-4">
+          Ao registrar a primeira evolução, será solicitado o preenchimento da anamnese inicial.
+        </p>
+        {onNewConsultation && (
+          <Button onClick={onNewConsultation} className="gap-2">
+            <Plus className="w-4 h-4" /> Inserir Evolução (1ª Consulta)
+          </Button>
+        )}
       </div>
     );
   }

@@ -6,16 +6,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { AnamnesisData, anamnesisLabels } from "./AnamnesisModal";
+import { ChevronDown, ChevronUp, ClipboardList } from "lucide-react";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   patientId: string;
+  anamnesis?: AnamnesisData | null;
   onSuccess: () => void;
 }
 
-const NewConsultationModal = ({ open, onOpenChange, patientId, onSuccess }: Props) => {
+const NewConsultationModal = ({ open, onOpenChange, patientId, anamnesis, onSuccess }: Props) => {
   const [loading, setLoading] = useState(false);
+  const [showAnamnesisSummary, setShowAnamnesisSummary] = useState(false);
   const [form, setForm] = useState({
     chief_complaint: "",
     physical_exam: "",
@@ -45,7 +49,6 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, onSuccess }: Prop
       await supabase.from("patients").update({ diagnosis: form.diagnosis.trim() }).eq("id", patientId);
     }
 
-
     if (error) {
       toast.error("Erro ao salvar consulta.");
     } else {
@@ -61,8 +64,39 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, onSuccess }: Prop
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-heading text-xl">Nova Evolução</DialogTitle>
+          <DialogTitle className="font-heading text-xl">Inserir Evolução Clínica</DialogTitle>
         </DialogHeader>
+
+        {/* Resumo rápido da Anamnese Inicial para consulta durante o atendimento */}
+        {anamnesis && Object.values(anamnesis).some((v) => typeof v === "string" && v.trim().length > 0) && (
+          <div className="bg-muted/40 border border-border rounded-xl p-3 text-xs">
+            <button
+              type="button"
+              onClick={() => setShowAnamnesisSummary(!showAnamnesisSummary)}
+              className="flex items-center justify-between w-full font-medium text-foreground hover:text-primary transition-colors"
+            >
+              <span className="flex items-center gap-1.5">
+                <ClipboardList className="w-4 h-4 text-primary" />
+                Consultar Anamnese Inicial do Paciente
+              </span>
+              {showAnamnesisSummary ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            {showAnamnesisSummary && (
+              <div className="grid gap-2 sm:grid-cols-2 mt-3 pt-3 border-t border-border/60">
+                {(Object.keys(anamnesisLabels) as (keyof AnamnesisData)[])
+                  .filter((k) => anamnesis[k]?.trim())
+                  .map((k) => (
+                    <div key={k} className="bg-background/80 p-2 rounded border border-border/40">
+                      <span className="text-muted-foreground font-medium block">{anamnesisLabels[k]}:</span>
+                      <span className="text-foreground font-body">{anamnesis[k]}</span>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="space-y-4">
           <div>
             <Label className="font-body text-sm">Queixa Principal</Label>

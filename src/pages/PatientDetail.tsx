@@ -90,9 +90,14 @@ const PatientDetail = () => {
   };
 
   const anamnesis = (patient?.anamnesis ?? null) as AnamnesisData | null;
+  const hasCompletedAnamnesis = Boolean(
+    patient?.anamnesis_completed_at ||
+    (anamnesis && Object.values(anamnesis).some((v) => typeof v === "string" && v.trim().length > 0))
+  );
 
   const handleNewConsultation = () => {
-    if (!anamnesis) {
+    // Se for a primeira consulta ou a anamnese ainda não estiver concluída, abre o modal de Anamnese
+    if (!hasCompletedAnamnesis || consultations.length === 0) {
       setOpenConsultationAfterAnamnesis(true);
       setShowAnamnesis(true);
     } else {
@@ -159,8 +164,8 @@ const PatientDetail = () => {
           <Button variant="outline" className="gap-1.5" onClick={() => setShowQuote(true)}>
             <Receipt className="w-4 h-4" /> Gerar Orçamento
           </Button>
-          <Button className="gap-1.5" onClick={handleNewConsultation}>
-            <Plus className="w-4 h-4" /> Nova Evolução
+          <Button className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleNewConsultation}>
+            <Plus className="w-4 h-4" /> Inserir Evolução
           </Button>
 
         </div>
@@ -200,36 +205,38 @@ const PatientDetail = () => {
       {/* Anamnese inicial */}
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Anamnese inicial
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+            <span>Anamnese Inicial (1ª Consulta)</span>
             {patient.anamnesis_completed_at && (
-              <span className="ml-2 normal-case tracking-normal text-muted-foreground/70">
-                · {new Date(patient.anamnesis_completed_at).toLocaleDateString("pt-BR")}
+              <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-mint-light text-secondary-foreground">
+                Concluída em {new Date(patient.anamnesis_completed_at).toLocaleDateString("pt-BR")}
               </span>
             )}
           </p>
           <Button variant="ghost" size="sm" onClick={() => setShowAnamnesis(true)}>
-            {anamnesis ? "Editar" : "Preencher"}
+            {hasCompletedAnamnesis ? "Editar Anamnese" : "Preencher Agora"}
           </Button>
         </div>
-        {anamnesis ? (
-          <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+        {hasCompletedAnamnesis && anamnesis ? (
+          <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 pt-1 text-sm">
             {(Object.keys(anamnesisLabels) as (keyof AnamnesisData)[])
               .filter((k) => anamnesis[k]?.trim())
               .map((k) => (
-                <div key={k}>
-                  <p className="text-xs text-muted-foreground">{anamnesisLabels[k]}</p>
-                  <p className="text-sm text-foreground font-body">{anamnesis[k]}</p>
+                <div key={k} className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                  <p className="text-xs font-medium text-muted-foreground">{anamnesisLabels[k]}</p>
+                  <p className="text-sm font-medium text-foreground font-body mt-0.5">{anamnesis[k]}</p>
                 </div>
               ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground font-body">
-            Ainda não preenchida. Será solicitada ao registrar a primeira evolução.
-          </p>
+          <div className="flex items-center justify-between py-2 text-sm text-muted-foreground font-body">
+            <span>Ainda não preenchida. Será solicitada automaticamente ao clicar em <strong>Inserir evolução</strong>.</span>
+            <Button size="sm" variant="outline" onClick={() => { setOpenConsultationAfterAnamnesis(false); setShowAnamnesis(true); }}>
+              Preencher anamnese
+            </Button>
+          </div>
         )}
       </div>
-
 
       {/* Diagnóstico + sessões */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -243,17 +250,16 @@ const PatientDetail = () => {
         )}
       </div>
 
-
       {/* Tabs */}
       <Tabs defaultValue="timeline" className="w-full">
         <TabsList className="bg-muted/50">
-          <TabsTrigger value="timeline">Histórico de Consultas</TabsTrigger>
+          <TabsTrigger value="timeline">Histórico de Consultas ({consultations.length})</TabsTrigger>
           <TabsTrigger value="medications">Farmacoterapia</TabsTrigger>
           <TabsTrigger value="quotes">Orçamentos</TabsTrigger>
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
         </TabsList>
         <TabsContent value="timeline" className="mt-4">
-          <ConsultationTimeline consultations={consultations} />
+          <ConsultationTimeline consultations={consultations} onNewConsultation={handleNewConsultation} />
         </TabsContent>
         <TabsContent value="medications" className="mt-4">
           <MedicationHistory patientId={patient.id} />
@@ -267,7 +273,13 @@ const PatientDetail = () => {
       </Tabs>
 
       {/* Modals */}
-      <NewConsultationModal open={showConsultation} onOpenChange={setShowConsultation} patientId={patient.id} onSuccess={refresh} />
+      <NewConsultationModal
+        open={showConsultation}
+        onOpenChange={setShowConsultation}
+        patientId={patient.id}
+        anamnesis={hasCompletedAnamnesis ? anamnesis : null}
+        onSuccess={refresh}
+      />
       <PrescriptionModal open={showPrescription} onOpenChange={setShowPrescription} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
       <QuoteModal open={showQuote} onOpenChange={setShowQuote} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
       {patient && <EditPatientModal open={showEdit} onOpenChange={setShowEdit} patient={patient} />}
