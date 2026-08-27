@@ -89,6 +89,17 @@ const PatientDetail = () => {
     queryClient.invalidateQueries({ queryKey: ["quotes", id] });
   };
 
+  const anamnesis = (patient?.anamnesis ?? null) as AnamnesisData | null;
+
+  const handleNewConsultation = () => {
+    if (!anamnesis) {
+      setOpenConsultationAfterAnamnesis(true);
+      setShowAnamnesis(true);
+    } else {
+      setShowConsultation(true);
+    }
+  };
+
 
   if (loadingPatient) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando...</div>;
