@@ -19,6 +19,7 @@ import EditPatientModal from "@/components/patient/EditPatientModal";
 import QuoteModal from "@/components/patient/QuoteModal";
 import QuoteHistory from "@/components/patient/QuoteHistory";
 import PaymentHistory from "@/components/patient/PaymentHistory";
+import AnamnesisModal, { AnamnesisData, anamnesisLabels } from "@/components/patient/AnamnesisModal";
 
 const PatientDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +31,9 @@ const PatientDetail = () => {
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState("");
   const [showEdit, setShowEdit] = useState(false);
+  const [showAnamnesis, setShowAnamnesis] = useState(false);
+  const [openConsultationAfterAnamnesis, setOpenConsultationAfterAnamnesis] = useState(false);
+
 
   // Exclusão do paciente — dupla confirmação
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
