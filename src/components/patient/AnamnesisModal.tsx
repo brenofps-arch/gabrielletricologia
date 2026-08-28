@@ -20,13 +20,17 @@ export interface AnamnesisData {
   smoking: string;
   alcohol: string;
   physical_activity: string;
+  physical_activity_type: string;
+  bowel_function: string;
   water_intake: string;
   supplements: string;
   sleep_quality: string;
+  sleep_medication: string;
   family_history: string;
   // HairCare (Tricologia)
   haircare_washing_frequency: string;
   haircare_chemical_procedures: string;
+  haircare_chemical_last_time: string;
   haircare_thermal_tools: string;
   haircare_routine_products: string;
   haircare_scalp_symptoms: string;
@@ -44,12 +48,16 @@ export const emptyAnamnesis: AnamnesisData = {
   smoking: "",
   alcohol: "",
   physical_activity: "",
+  physical_activity_type: "",
+  bowel_function: "",
   water_intake: "",
   supplements: "",
   sleep_quality: "",
+  sleep_medication: "",
   family_history: "",
   haircare_washing_frequency: "",
   haircare_chemical_procedures: "",
+  haircare_chemical_last_time: "",
   haircare_thermal_tools: "",
   haircare_routine_products: "",
   haircare_scalp_symptoms: "",
@@ -66,14 +74,18 @@ export const anamnesisLabels: Record<keyof AnamnesisData, string> = {
   recent_infections: "Algum quadro infeccioso recente?",
   smoking: "Tabagismo",
   alcohol: "Etilismo",
-  physical_activity: "Atividade física",
+  physical_activity: "Atividade física (Frequência)",
+  physical_activity_type: "Tipo de atividade física praticada",
+  bowel_function: "Funcionamento do intestino (Frequência evacuatória)",
   water_intake: "Ingestão de água",
   supplements: "Suplementos alimentares",
   sleep_quality: "Qualidade do sono",
+  sleep_medication: "Usa medicação para dormir? (Qual?)",
   family_history: "Histórico familiar",
   // HairCare
   haircare_washing_frequency: "Frequência de lavagem do couro cabeludo",
-  haircare_chemical_procedures: "Procedimentos químicos (tintura, descoloração, progressiva, botox...)",
+  haircare_chemical_procedures: "Procedimentos químicos realizados (tintura, descoloração, progressiva...)",
+  haircare_chemical_last_time: "Tempo desde o último procedimento químico (Quando foi?)",
   haircare_thermal_tools: "Fontes de calor (secador, chapinha, babyliss...)",
   haircare_routine_products: "Produtos em uso / Rotina capilar (shampoos, tônicos, óleos...)",
   haircare_scalp_symptoms: "Sintomas no couro cabeludo (coceira, descamação, dor/tricodinia, oleosidade...)",
@@ -100,13 +112,17 @@ const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
   smoking: ["Não fumante", "Ex-fumante", "Fumante ativo"],
   alcohol: ["Não consome", "Socialmente (ocasional)", "Frequente"],
   physical_activity: ["Sedentário", "1 a 2x na semana", "3 a 5x na semana", "Diário / Atleta"],
+  physical_activity_type: ["Musculação", "Corrida / Caminhada", "Pilates / Yoga", "Crossfit", "Natação", "Nenhuma"],
+  bowel_function: ["Diário (1 a 2x ao dia)", "Dias alternados", "2 a 3x por semana (constipado)", "Mais de 3 dias sem evacuar", "Fezes ressecadas / difícil evacuação"],
   water_intake: ["Menos de 1L / dia", "1 a 2L / dia", "2 a 3L / dia", "Mais de 3L / dia"],
   supplements: ["Nenhum suplemento", "Whey protein / Creatina", "Polivitamínico / Vitamina D", "Biotina / Ferro"],
   sleep_quality: ["Bom (7-8h reparador)", "Ruim / Insônia", "Fragmentado (acorda cansado)"],
+  sleep_medication: ["Não usa medicação", "Zolpidem", "Melatonina", "Clonazepam (Rivotril)", "Trazodona", "Fitoterápico / Passiflora"],
   family_history: ["Sem histórico relevante", "Calvície paterna", "Calvície materna", "Calvície bilateral (pai e mãe)", "Hipotireoidismo familiar"],
   // HairCare quick options
   haircare_washing_frequency: ["Diária", "Dias alternados", "2 a 3x por semana", "1x por semana"],
   haircare_chemical_procedures: ["Nenhuma química", "Coloração / Tintura", "Luzes / Descoloração", "Progressiva / Botox capilar", "Alisamento definitivo"],
+  haircare_chemical_last_time: ["Nunca realizou", "Menos de 1 mês", "Há 1 a 3 meses", "Há 3 a 6 meses", "Há mais de 6 meses", "Há mais de 1 ano"],
   haircare_thermal_tools: ["Não usa fontes de calor", "Secador com protetor térmico", "Secador frequente", "Chapinha / Babyliss frequente"],
   haircare_routine_products: ["Shampoo neutro / suave", "Shampoo anticaspa", "Tônico antiqueda", "Máscara de tratamento", "Óleos vegetais"],
   haircare_scalp_symptoms: ["Nenhum sintoma", "Queda acentuada", "Afinamento dos fios", "Prurido (coceira)", "Descamação / Caspa", "Oleosidade excessiva", "Tricodinia (dor/sensibilidade no couro)"],
@@ -198,7 +214,8 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
               onClick={() => {
                 const singleChoiceKeys: (keyof AnamnesisData)[] = [
                   "smoking", "alcohol", "physical_activity", "water_intake", "sleep_quality",
-                  "anabolic_steroids", "topical_testosterone", "haircare_washing_frequency"
+                  "anabolic_steroids", "topical_testosterone", "haircare_washing_frequency",
+                  "bowel_function", "haircare_chemical_last_time"
                 ];
                 if (!multiline && singleChoiceKeys.includes(k)) {
                   set(k, opt);
@@ -284,19 +301,24 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
             </div>
           </div>
 
-          {/* Seção 3: Hábitos e Vícios */}
+          {/* Seção 3: Hábitos, Vícios e Fisiologia */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Activity className="w-4 h-4 text-primary" />
-              <span>Hábitos e Vícios</span>
+              <span>Hábitos, Vícios e Fisiologia</span>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {renderField("smoking", "Ex: Não fumante / 10 cigarros ao dia")}
               {renderField("alcohol", "Ex: Social fim de semana / Não consome")}
-              {renderField("physical_activity", "Ex: Musculação 4x/semana")}
+              {renderField("physical_activity", "Ex: 3 a 5x na semana")}
+              {renderField("physical_activity_type", "Ex: Musculação intensa, corrida 5km, pilates...")}
               {renderField("water_intake", "Ex: 2 a 2.5 litros ao dia")}
+              {renderField("bowel_function", "Ex: Diário 1x ao dia / Constipado (a cada 3 dias)...")}
               {renderField("supplements", "Ex: Creatina, Whey, Biotina...", true)}
-              {renderField("sleep_quality", "Ex: Dorme 6h, acorda descansado/cansado...")}
+              <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2 bg-background/50 p-3 rounded-lg border border-border/60">
+                {renderField("sleep_quality", "Ex: Dorme 6h, sono leve / acorda cansado...")}
+                {renderField("sleep_medication", "Ex: Nega / Sim, usa Zolpidem 10mg, Melatonina...")}
+              </div>
             </div>
           </div>
 
@@ -318,7 +340,8 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
             <div className="grid gap-4 sm:grid-cols-2">
               {renderField("haircare_washing_frequency", "Ex: Diária / Dias alternados...")}
               {renderField("haircare_thermal_tools", "Ex: Secador após lavagem com protetor térmico...")}
-              {renderField("haircare_chemical_procedures", "Ex: Luzes a cada 6 meses, botox capilar...", true)}
+              {renderField("haircare_chemical_procedures", "Ex: Luzes, coloração, botox capilar, progressiva...", true)}
+              {renderField("haircare_chemical_last_time", "Ex: Fez mechas há 2 meses, última progressiva há 6 meses...")}
               {renderField("haircare_routine_products", "Ex: Shampoo antiqueda, tônico noturno, máscara...", true)}
               {renderField("haircare_scalp_symptoms", "Ex: Coceira leve, descamação, dor no topo da cabeça...", true)}
               {renderField("haircare_previous_treatments", "Ex: Minoxidil 5% tópico por 1 ano, MMP prévio...", true)}
