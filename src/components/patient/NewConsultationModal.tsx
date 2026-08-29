@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AnamnesisData, anamnesisLabels } from "./AnamnesisModal";
-import { ChevronDown, ChevronUp, ClipboardList, Calendar, Microscope, Activity } from "lucide-react";
+import { ChevronDown, ChevronUp, ClipboardList, Calendar, Microscope, Activity, FlaskConical } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface Props {
@@ -91,6 +91,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, ana
     treatment_plan: "",
     prescription_notes: "",
     observations: "",
+    exams_brought: "",
   });
 
   const [exam, setExam] = useState<TrichoscopyExam>(emptyTrichoscopy);
@@ -108,6 +109,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, ana
           treatment_plan: consultation.treatment_plan || "",
           prescription_notes: consultation.prescription_notes || "",
           observations: consultation.observations || "",
+          exams_brought: consultation.exams_brought || "",
         });
         setExam(emptyTrichoscopy);
       } else {
@@ -119,6 +121,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, ana
           treatment_plan: "",
           prescription_notes: "",
           observations: "",
+          exams_brought: "",
         });
         setExam(emptyTrichoscopy);
       }
@@ -193,6 +196,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, ana
       treatment_plan: form.treatment_plan || null,
       prescription_notes: form.prescription_notes || null,
       observations: form.observations || null,
+      exams_brought: form.exams_brought || null,
     };
 
     let saveError;
@@ -461,6 +465,20 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, ana
               onChange={(e) => setForm({ ...form, observations: e.target.value })}
               placeholder="Notas adicionais ou orientações para o próximo retorno..."
               className="mt-1 min-h-[60px]"
+            />
+          </div>
+
+          {/* Exames Trazidos pelo Paciente (Caixa Final) */}
+          <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+              <FlaskConical className="w-4 h-4" />
+              <span>Exames Trazidos pelo Paciente</span>
+            </div>
+            <Textarea
+              value={form.exams_brought}
+              onChange={(e) => setForm({ ...form, exams_brought: e.target.value })}
+              placeholder="Ex: Hemograma, ferritina, TSH... Registre aqui os exames e resultados trazidos pelo paciente nesta consulta..."
+              className="mt-1 min-h-[100px] text-sm bg-background"
             />
           </div>
         </div>

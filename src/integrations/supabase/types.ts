@@ -127,6 +127,7 @@ export type Database = {
           consultation_date: string
           created_at: string
           diagnosis: string | null
+          exams_brought: string | null
           id: string
           observations: string | null
           patient_id: string
@@ -141,6 +142,7 @@ export type Database = {
           consultation_date?: string
           created_at?: string
           diagnosis?: string | null
+          exams_brought?: string | null
           id?: string
           observations?: string | null
           patient_id: string
@@ -155,6 +157,7 @@ export type Database = {
           consultation_date?: string
           created_at?: string
           diagnosis?: string | null
+          exams_brought?: string | null
           id?: string
           observations?: string | null
           patient_id?: string
