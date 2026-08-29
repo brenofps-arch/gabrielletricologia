@@ -67,41 +67,41 @@ const ConsultationTimeline = ({ consultations, onNewConsultation, onEditConsulta
             </div>
 
             {/* Conteúdo Clínico */}
-            <div className="space-y-2 text-sm">
+            <div className="space-y-5 text-sm">
               {c.diagnosis && (
                 <div className="p-2.5 rounded-lg bg-mint-light/40 border border-secondary/30">
-                  <p className="text-xs font-semibold text-secondary-foreground uppercase tracking-wider">Diagnóstico</p>
-                  <p className="font-bold text-foreground font-heading mt-0.5">{c.diagnosis}</p>
+                  <p className="text-sm font-bold text-secondary-foreground uppercase tracking-wide">Diagnóstico</p>
+                  <p className="font-bold text-foreground font-heading mt-1">{c.diagnosis}</p>
                 </div>
               )}
 
               {c.chief_complaint && (
                 <div>
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Queixa</span>
-                  <p className="text-foreground font-body mt-0.5">{c.chief_complaint}</p>
+                  <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Queixa</span>
+                  <p className="text-foreground font-body mt-1">{c.chief_complaint}</p>
                 </div>
               )}
 
               {c.physical_exam && (
                 <div>
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Exame Físico (Tricológico)</span>
-                  <p className="text-foreground font-body mt-0.5">{c.physical_exam}</p>
+                  <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Exame Físico (Tricológico)</span>
+                  <p className="text-foreground font-body mt-1">{c.physical_exam}</p>
                 </div>
               )}
 
               {c.treatment_plan && (
                 <div>
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Conduta / Plano Terapêutico</span>
-                  <p className="text-foreground font-body mt-0.5">{c.treatment_plan}</p>
+                  <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Conduta / Plano Terapêutico</span>
+                  <p className="text-foreground font-body mt-1">{c.treatment_plan}</p>
                 </div>
               )}
 
               {c.exams_brought && (
                 <div className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
-                  <span className="text-xs font-semibold text-primary uppercase tracking-wider flex items-center gap-1">
-                    <FlaskConical className="w-3.5 h-3.5" /> Exames Trazidos pelo Paciente
+                  <span className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-1.5">
+                    <FlaskConical className="w-4 h-4" /> Exames Trazidos pelo Paciente
                   </span>
-                  <p className="text-foreground font-body mt-0.5 whitespace-pre-line">{c.exams_brought}</p>
+                  <p className="text-foreground font-body mt-1 whitespace-pre-line">{c.exams_brought}</p>
                 </div>
               )}
 
