@@ -20,6 +20,15 @@ interface Props {
 }
 
 interface TrichoscopyExam {
+  // Exame Macroscópico
+  macro_eyebrows_sideburns: string;
+  macro_hair_line: string;
+  macro_facial_papules: string;
+  macro_midline_widening: string;
+  macro_vertex_rarefaction: string;
+  macro_prominent_recession: string;
+  // Tricoscopia
+  follicular_opening_present: string;
   follicular_openings: string;
   hairs_per_fu: string;
   anisotrichosis: string;
@@ -32,6 +41,13 @@ interface TrichoscopyExam {
 }
 
 const emptyTrichoscopy: TrichoscopyExam = {
+  macro_eyebrows_sideburns: "",
+  macro_hair_line: "",
+  macro_facial_papules: "",
+  macro_midline_widening: "",
+  macro_vertex_rarefaction: "",
+  macro_prominent_recession: "",
+  follicular_opening_present: "",
   follicular_openings: "",
   hairs_per_fu: "",
   anisotrichosis: "",
@@ -44,13 +60,20 @@ const emptyTrichoscopy: TrichoscopyExam = {
 };
 
 const trichoscopyOptions: Record<keyof TrichoscopyExam, string[]> = {
+  macro_eyebrows_sideburns: ["Sobrancelhas e costeletas preservadas", "Rarefação de sobrancelhas", "Rarefação de costeletas"],
+  macro_hair_line: ["Hairline preservada", "Hairline recuada", "Hairline em M", "Hairline irregular"],
+  macro_facial_papules: ["Sim", "Não"],
+  macro_midline_widening: ["Sim", "Não"],
+  macro_vertex_rarefaction: ["Sim", "Não"],
+  macro_prominent_recession: ["Sim", "Não"],
+  follicular_opening_present: ["Sim", "Não"],
   follicular_openings: ["Preservadas / Normais", "Diminuídas", "Ausência focal", "Pontos amarelos"],
   hairs_per_fu: ["Predomínio de 1 fio", "1 a 2 fios", "2 a 3 fios (normal)", "3 a 4 fios"],
   anisotrichosis: ["Não / Ausente", "Presente (> 20%)", "Leve (< 20%)"],
   vellus: ["Ausentes", "Presentes no vértex", "Presentes na linha anterior", "Acentuados"],
   hair_morphology: ["Sem alterações", "Tricoptilose (pontas duplas)", "Tricorrexe nodosa", "Fios em ponto de exclamação", "Fios quebradiços", "Cabelos em tufo"],
   perifollicular_sign: ["Ausente / Normal", "Eritema perifolicular", "Descamação peripilar (colarete)", "Hiperqueratose folicular", "Halo branco peripilar"],
-  follicular_sign: ["Sem alterações", "Pontos amarelos (Yellow dots)", "Pontos pretos (Black dots)", "Pontos brancos", "Pontos vermelhos"],
+  follicular_sign: ["Sem alterações", "Pontos amarelos (Yellow dots)", "Pontos pretos (Black dots)", "Pontos brancos", "Pontos vermelhos", "Halo marrom"],
   vessels: ["Padrão normal (alças)", "Arboriformes", "Ectásicos / Tortuosos", "Pontilhados", "Ausentes"],
   pull_test: ["Negativo (normal)", "Positivo difuso", "Positivo em vértex", "Positivo frontal", "Positivo parietal", "Fios anágenos", "Fios telógenos"],
 };
@@ -119,9 +142,25 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, ana
       ? new Date(`${form.consultation_date}T12:00:00Z`).toISOString()
       : new Date().toISOString();
 
+    // Compila os achados do exame macroscópico
+    const macroLines: string[] = [];
+    if (exam.macro_eyebrows_sideburns) macroLines.push(`• Sobrancelhas e costeletas: ${exam.macro_eyebrows_sideburns}`);
+    if (exam.macro_hair_line) macroLines.push(`• Hair line: ${exam.macro_hair_line}`);
+    if (exam.macro_facial_papules) macroLines.push(`• Pápulas em face: ${exam.macro_facial_papules}`);
+    if (exam.macro_midline_widening) macroLines.push(`• Alargamento de linha média: ${exam.macro_midline_widening}`);
+    if (exam.macro_vertex_rarefaction) macroLines.push(`• Rarefação em vértex: ${exam.macro_vertex_rarefaction}`);
+    if (exam.macro_prominent_recession) macroLines.push(`• Entradas proeminentes: ${exam.macro_prominent_recession}`);
+
     // Compila os achados do exame tricológico
     const examLines: string[] = [];
-    if (exam.follicular_openings) examLines.push(`• Abertura folicular: ${exam.follicular_openings}`);
+    if (macroLines.length > 0) {
+      examLines.push("EXAME MACROSCÓPICO");
+      examLines.push(...macroLines);
+      examLines.push("");
+      examLines.push("TRICOSCOPIA");
+    }
+    if (exam.follicular_opening_present) examLines.push(`• Abertura folicular: ${exam.follicular_opening_present}`);
+    if (exam.follicular_openings) examLines.push(`• Presença de abertura folicular: ${exam.follicular_openings}`);
     if (exam.hairs_per_fu) examLines.push(`• Fios por UF: ${exam.hairs_per_fu}`);
     if (exam.anisotrichosis || exam.vellus) {
       const diam = [
@@ -282,6 +321,22 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, ana
             />
           </div>
 
+          {/* Exame Macroscópico */}
+          <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+              <Microscope className="w-4 h-4" />
+              <span>Exame Macroscópico</span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {renderTrichoscopyInput("macro_eyebrows_sideburns", "Descrever sobrancelhas e costeletas:", "Ex: Sobrancelhas e costeletas preservadas...")}
+              {renderTrichoscopyInput("macro_hair_line", "Hair line:", "Ex: Hairline preservada, recuada...")}
+              {renderTrichoscopyInput("macro_facial_papules", "Tem pápulas em face?", "Sim / Não")}
+              {renderTrichoscopyInput("macro_midline_widening", "Alargamento de linha média?", "Sim / Não")}
+              {renderTrichoscopyInput("macro_vertex_rarefaction", "Rarefação em vértex?", "Sim / Não")}
+              {renderTrichoscopyInput("macro_prominent_recession", "Entradas proeminentes?", "Sim / Não")}
+            </div>
+          </div>
+
           {/* Exame Físico Tricológico Estruturado */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center justify-between">
@@ -302,6 +357,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, ana
 
             {showTrichoscopyFields && (
               <div className="grid gap-4 sm:grid-cols-2 pt-1 border-t border-border/60">
+                {renderTrichoscopyInput("follicular_opening_present", "Abertura folicular:", "Sim / Não")}
                 {renderTrichoscopyInput("follicular_openings", "Presença de abertura folicular:", "Ex: Preservadas, ausentes...")}
                 {renderTrichoscopyInput("hairs_per_fu", "Fios por UF:", "Ex: 1 a 2 fios, predomínio 1...")}
 

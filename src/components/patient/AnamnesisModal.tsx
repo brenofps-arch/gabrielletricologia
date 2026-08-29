@@ -7,9 +7,15 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pill, Activity, HeartPulse, Users, Calendar, Scissors, Sparkles } from "lucide-react";
+import { Pill, Activity, HeartPulse, Users, Calendar, Scissors, Sparkles, User } from "lucide-react";
 
 export interface AnamnesisData {
+  // Dados Pessoais e Sociais
+  profession: string;
+  marital_status: string;
+  has_children: string;
+  children_quantity: string;
+  wants_children_next_year: string;
   continuous_medications: string;
   allergies: string;
   comorbidities: string;
@@ -29,6 +35,9 @@ export interface AnamnesisData {
   family_history: string;
   // HairCare (Tricologia)
   haircare_washing_frequency: string;
+  haircare_water_temperature: string;
+  haircare_wash_time: string;
+  haircare_shampoo_conditioner: string;
   haircare_chemical_procedures: string;
   haircare_chemical_last_time: string;
   haircare_thermal_tools: string;
@@ -38,6 +47,11 @@ export interface AnamnesisData {
 }
 
 export const emptyAnamnesis: AnamnesisData = {
+  profession: "",
+  marital_status: "",
+  has_children: "",
+  children_quantity: "",
+  wants_children_next_year: "",
   continuous_medications: "",
   allergies: "",
   comorbidities: "",
@@ -56,6 +70,9 @@ export const emptyAnamnesis: AnamnesisData = {
   sleep_medication: "",
   family_history: "",
   haircare_washing_frequency: "",
+  haircare_water_temperature: "",
+  haircare_wash_time: "",
+  haircare_shampoo_conditioner: "",
   haircare_chemical_procedures: "",
   haircare_chemical_last_time: "",
   haircare_thermal_tools: "",
@@ -65,6 +82,12 @@ export const emptyAnamnesis: AnamnesisData = {
 };
 
 export const anamnesisLabels: Record<keyof AnamnesisData, string> = {
+  // Dados Pessoais e Sociais
+  profession: "Profissão",
+  marital_status: "Estado civil",
+  has_children: "Tem filhos?",
+  children_quantity: "Quantidade de filhos",
+  wants_children_next_year: "Pretende ter filhos no próximo ano?",
   continuous_medications: "Medicamentos de uso contínuo",
   allergies: "Alergias medicamentosas / Alimentares",
   comorbidities: "Comorbidades (Doenças prévias / atuais)",
@@ -84,6 +107,9 @@ export const anamnesisLabels: Record<keyof AnamnesisData, string> = {
   family_history: "Histórico familiar",
   // HairCare
   haircare_washing_frequency: "Frequência de lavagem do couro cabeludo",
+  haircare_water_temperature: "Temperatura da água",
+  haircare_wash_time: "Horário que lava",
+  haircare_shampoo_conditioner: "Shampoo e condicionador que usa",
   haircare_chemical_procedures: "Procedimentos químicos realizados (tintura, descoloração, progressiva...)",
   haircare_chemical_last_time: "Tempo desde o último procedimento químico (Quando foi?)",
   haircare_thermal_tools: "Fontes de calor (secador, chapinha, babyliss...)",
@@ -102,6 +128,9 @@ interface Props {
 }
 
 const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
+  marital_status: ["Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"],
+  has_children: ["Sim", "Não"],
+  wants_children_next_year: ["Sim", "Não"],
   continuous_medications: ["Nega uso contínuo", "Anticoncepcional", "Anti-hipertensivo", "Tireoide (Levotiroxina)"],
   allergies: ["Nega alergias conhecidas", "Alergia a Dipirona", "Alergia a Sulfas", "Alergia alimentar"],
   comorbidities: ["Nenhuma comorbidade", "Hipotireoidismo", "Diabetes", "Hipertensão (HAS)", "SOP (Ovários Policísticos)", "Anemia / Ferritina baixa", "Dermatite seborreica", "Psoríase", "Doença autoimune"],
@@ -121,6 +150,8 @@ const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
   family_history: ["Sem histórico relevante", "Calvície paterna", "Calvície materna", "Calvície bilateral (pai e mãe)", "Hipotireoidismo familiar"],
   // HairCare quick options
   haircare_washing_frequency: ["Diária", "Dias alternados", "2 a 3x por semana", "1x por semana"],
+  haircare_water_temperature: ["Fria", "Morna", "Quente"],
+  haircare_wash_time: ["Manhã", "Tarde", "Noite"],
   haircare_chemical_procedures: ["Nenhuma química", "Coloração / Tintura", "Luzes / Descoloração", "Progressiva / Botox capilar", "Alisamento definitivo"],
   haircare_chemical_last_time: ["Nunca realizou", "Menos de 1 mês", "Há 1 a 3 meses", "Há 3 a 6 meses", "Há mais de 6 meses", "Há mais de 1 ano"],
   haircare_thermal_tools: ["Não usa fontes de calor", "Secador com protetor térmico", "Secador frequente", "Chapinha / Babyliss frequente"],
@@ -215,7 +246,9 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
                 const singleChoiceKeys: (keyof AnamnesisData)[] = [
                   "smoking", "alcohol", "physical_activity", "water_intake", "sleep_quality",
                   "anabolic_steroids", "topical_testosterone", "haircare_washing_frequency",
-                  "bowel_function", "haircare_chemical_last_time"
+                  "bowel_function", "haircare_chemical_last_time",
+                  "marital_status", "has_children", "wants_children_next_year",
+                  "haircare_water_temperature", "haircare_wash_time",
                 ];
                 if (!multiline && singleChoiceKeys.includes(k)) {
                   set(k, opt);
@@ -274,6 +307,51 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
         </div>
 
         <div className="space-y-6 py-2">
+          {/* Seção 0: Dados Pessoais e Sociais */}
+          <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <User className="w-4 h-4 text-primary" />
+              <span>Dados Pessoais e Sociais</span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {renderField("profession", "Ex: Advogada, autônoma, do lar...")}
+              {renderField("marital_status", "Ex: Solteiro(a), casado(a)...")}
+              {renderField("wants_children_next_year", "Ex: Sim / Não")}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="font-body text-xs font-semibold text-foreground/90">{anamnesisLabels.has_children}</Label>
+                </div>
+                <div className="flex flex-wrap gap-1.5 pb-1">
+                  {quickOptions.has_children!.map((opt) => (
+                    <button
+                      type="button"
+                      key={opt}
+                      onClick={() => {
+                        set("has_children", opt);
+                        if (opt !== "Sim") set("children_quantity", "");
+                      }}
+                      className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors ${
+                        form.has_children === opt
+                          ? "bg-primary text-primary-foreground border-primary font-medium"
+                          : "border-border/70 bg-muted/40 hover:bg-primary/10 hover:text-primary hover:border-primary/40 text-muted-foreground"
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+                {form.has_children === "Sim" && (
+                  <Input
+                    value={form.children_quantity}
+                    onChange={(e) => set("children_quantity", e.target.value)}
+                    placeholder="Quantos filhos?"
+                    className="text-sm bg-background h-9"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Seção 1: Medicamentos, Alergias e Comorbidades */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -339,6 +417,9 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {renderField("haircare_washing_frequency", "Ex: Diária / Dias alternados...")}
+              {renderField("haircare_water_temperature", "Ex: Fria, morna ou quente...")}
+              {renderField("haircare_wash_time", "Ex: Manhã, tarde ou noite...")}
+              {renderField("haircare_shampoo_conditioner", "Ex: Shampoo antiqueda X, condicionador Y...", true)}
               {renderField("haircare_thermal_tools", "Ex: Secador após lavagem com protetor térmico...")}
               {renderField("haircare_chemical_procedures", "Ex: Luzes, coloração, botox capilar, progressiva...", true)}
               {renderField("haircare_chemical_last_time", "Ex: Fez mechas há 2 meses, última progressiva há 6 meses...")}
