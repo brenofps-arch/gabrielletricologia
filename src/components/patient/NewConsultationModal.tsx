@@ -261,7 +261,6 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
 
       payload = {
         consultation_date: saveIsoDate,
-        visit_type: null,
         chief_complaint: form.chief_complaint || null,
         physical_exam: fullPhysicalExam || null,
         diagnosis: form.diagnosis || null,
@@ -269,9 +268,6 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
         prescription_notes: form.prescription_notes || null,
         observations: form.observations || null,
         exams_brought: form.exams_brought || null,
-        procedure_type: null,
-        procedure_number: null,
-        procedure_medications: null,
       };
     }
 
