@@ -1,4 +1,4 @@
-import { Calendar, FileText, Stethoscope, Plus, Pencil, Trash2, Activity, FlaskConical } from "lucide-react";
+import { Calendar, FileText, Stethoscope, Plus, Pencil, Trash2, FlaskConical, RotateCcw, Syringe } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 
@@ -8,6 +8,64 @@ interface Props {
   onEditConsultation?: (consultation: Tables<"consultations">) => void;
   onDeleteConsultation?: (consultationId: string) => void;
 }
+
+// Achados de exame compilados vêm como linhas "• Rótulo: valor" e cabeçalhos em maiúsculas
+// (ex: "EXAME MACROSCÓPICO"). Isso quebra o texto em tópicos legíveis em vez de um bloco corrido.
+const renderExamContent = (text: string) => {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  return (
+    <div className="space-y-2">
+      {lines.map((line, i) => {
+        if (line.startsWith("• ")) {
+          const content = line.slice(2);
+          const sepIdx = content.indexOf(":");
+          if (sepIdx > -1) {
+            const label = content.slice(0, sepIdx);
+            const value = content.slice(sepIdx + 1).trim();
+            return (
+              <div key={i} className="flex flex-wrap gap-1 text-sm">
+                <span className="font-semibold text-foreground">{label}:</span>
+                <span className="text-foreground/90 font-body">{value}</span>
+              </div>
+            );
+          }
+          return <p key={i} className="text-sm text-foreground font-body">{content}</p>;
+        }
+        if (line.endsWith(":") || line === line.toUpperCase()) {
+          return (
+            <p key={i} className="text-xs font-bold text-primary uppercase tracking-wide mt-3 first:mt-0">
+              {line}
+            </p>
+          );
+        }
+        return <p key={i} className="text-sm text-foreground font-body">{line}</p>;
+      })}
+    </div>
+  );
+};
+
+const renderFieldContent = (text: string) => {
+  if (text.includes("• ")) return renderExamContent(text);
+  return <p className="text-sm text-foreground font-body whitespace-pre-line mt-1">{text}</p>;
+};
+
+const visitBadge = (visitType: string | null) => {
+  if (visitType === "retorno") {
+    return (
+      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-secondary/20 text-secondary-foreground flex items-center gap-1">
+        <RotateCcw className="w-3 h-3" /> Retorno
+      </span>
+    );
+  }
+  if (visitType === "procedimento") {
+    return (
+      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary flex items-center gap-1">
+        <Syringe className="w-3 h-3" /> Procedimento
+      </span>
+    );
+  }
+  return null;
+};
 
 const ConsultationTimeline = ({ consultations, onNewConsultation, onEditConsultation, onDeleteConsultation }: Props) => {
   if (consultations.length === 0) {
@@ -40,6 +98,7 @@ const ConsultationTimeline = ({ consultations, onNewConsultation, onEditConsulta
                 <span className="text-sm font-semibold">
                   Consulta de {new Date(c.consultation_date).toLocaleDateString("pt-BR")}
                 </span>
+                {visitBadge(c.visit_type)}
               </div>
               <div className="flex items-center gap-1">
                 {onEditConsultation && (
@@ -67,52 +126,113 @@ const ConsultationTimeline = ({ consultations, onNewConsultation, onEditConsulta
             </div>
 
             {/* Conteúdo Clínico */}
-            <div className="space-y-5 text-sm">
-              {c.diagnosis && (
-                <div className="p-2.5 rounded-lg bg-mint-light/40 border border-secondary/30">
-                  <p className="text-sm font-bold text-secondary-foreground uppercase tracking-wide">Diagnóstico</p>
-                  <p className="font-bold text-foreground font-heading mt-1">{c.diagnosis}</p>
-                </div>
-              )}
+            {c.visit_type === "retorno" ? (
+              <div className="space-y-5 text-sm">
+                {c.chief_complaint && (
+                  <div>
+                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Queixa</span>
+                    {renderFieldContent(c.chief_complaint)}
+                  </div>
+                )}
+                {c.physical_exam && (
+                  <div>
+                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Exame Físico</span>
+                    {renderFieldContent(c.physical_exam)}
+                  </div>
+                )}
+                {c.exams_brought && (
+                  <div className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                    <span className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-1.5">
+                      <FlaskConical className="w-4 h-4" /> Exames Laboratoriais
+                    </span>
+                    {renderFieldContent(c.exams_brought)}
+                  </div>
+                )}
+                {c.treatment_plan && (
+                  <div>
+                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Conduta</span>
+                    {renderFieldContent(c.treatment_plan)}
+                  </div>
+                )}
+              </div>
+            ) : c.visit_type === "procedimento" ? (
+              <div className="space-y-5 text-sm">
+                {c.procedure_type && (
+                  <div className="p-2.5 rounded-lg bg-mint-light/40 border border-secondary/30">
+                    <p className="text-sm font-bold text-secondary-foreground uppercase tracking-wide">Procedimento</p>
+                    <p className="font-bold text-foreground font-heading mt-1">
+                      {c.procedure_type}
+                      {c.procedure_number ? ` — Sessão nº ${c.procedure_number}` : ""}
+                    </p>
+                  </div>
+                )}
+                {c.procedure_medications && (
+                  <div>
+                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Medicações Usadas no Procedimento</span>
+                    {renderFieldContent(c.procedure_medications)}
+                  </div>
+                )}
+                {c.observations && (
+                  <div>
+                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Observações</span>
+                    {renderFieldContent(c.observations)}
+                  </div>
+                )}
+                {c.treatment_plan && (
+                  <div>
+                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Conduta</span>
+                    {renderFieldContent(c.treatment_plan)}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-5 text-sm">
+                {c.diagnosis && (
+                  <div className="p-2.5 rounded-lg bg-mint-light/40 border border-secondary/30">
+                    <p className="text-sm font-bold text-secondary-foreground uppercase tracking-wide">Diagnóstico</p>
+                    <p className="font-bold text-foreground font-heading mt-1">{c.diagnosis}</p>
+                  </div>
+                )}
 
-              {c.chief_complaint && (
-                <div>
-                  <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Queixa</span>
-                  <p className="text-foreground font-body mt-1">{c.chief_complaint}</p>
-                </div>
-              )}
+                {c.chief_complaint && (
+                  <div>
+                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Queixa</span>
+                    {renderFieldContent(c.chief_complaint)}
+                  </div>
+                )}
 
-              {c.physical_exam && (
-                <div>
-                  <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Exame Físico (Tricológico)</span>
-                  <p className="text-foreground font-body mt-1">{c.physical_exam}</p>
-                </div>
-              )}
+                {c.physical_exam && (
+                  <div>
+                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Exame Físico (Tricológico)</span>
+                    {renderFieldContent(c.physical_exam)}
+                  </div>
+                )}
 
-              {c.treatment_plan && (
-                <div>
-                  <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Conduta / Plano Terapêutico</span>
-                  <p className="text-foreground font-body mt-1">{c.treatment_plan}</p>
-                </div>
-              )}
+                {c.treatment_plan && (
+                  <div>
+                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Conduta / Plano Terapêutico</span>
+                    {renderFieldContent(c.treatment_plan)}
+                  </div>
+                )}
 
-              {c.exams_brought && (
-                <div className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
-                  <span className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-1.5">
-                    <FlaskConical className="w-4 h-4" /> Exames Trazidos pelo Paciente
-                  </span>
-                  <p className="text-foreground font-body mt-1 whitespace-pre-line">{c.exams_brought}</p>
-                </div>
-              )}
+                {c.exams_brought && (
+                  <div className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                    <span className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-1.5">
+                      <FlaskConical className="w-4 h-4" /> Exames Trazidos pelo Paciente
+                    </span>
+                    {renderFieldContent(c.exams_brought)}
+                  </div>
+                )}
 
-              {c.observations && (
-                <div className="pt-1">
-                  <p className="text-xs text-muted-foreground italic flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5 inline" /> {c.observations}
-                  </p>
-                </div>
-              )}
-            </div>
+                {c.observations && (
+                  <div className="pt-1">
+                    <p className="text-xs text-muted-foreground italic flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5 inline" /> {c.observations}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       ))}

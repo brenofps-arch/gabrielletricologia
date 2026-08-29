@@ -133,9 +133,13 @@ export type Database = {
           patient_id: string
           physical_exam: string | null
           prescription_notes: string | null
+          procedure_medications: string | null
+          procedure_number: number | null
+          procedure_type: string | null
           treatment_plan: string | null
           updated_at: string
           user_id: string
+          visit_type: string | null
         }
         Insert: {
           chief_complaint?: string | null
@@ -148,9 +152,13 @@ export type Database = {
           patient_id: string
           physical_exam?: string | null
           prescription_notes?: string | null
+          procedure_medications?: string | null
+          procedure_number?: number | null
+          procedure_type?: string | null
           treatment_plan?: string | null
           updated_at?: string
           user_id: string
+          visit_type?: string | null
         }
         Update: {
           chief_complaint?: string | null
@@ -163,9 +171,13 @@ export type Database = {
           patient_id?: string
           physical_exam?: string | null
           prescription_notes?: string | null
+          procedure_medications?: string | null
+          procedure_number?: number | null
+          procedure_type?: string | null
           treatment_plan?: string | null
           updated_at?: string
           user_id?: string
+          visit_type?: string | null
         }
         Relationships: [
           {

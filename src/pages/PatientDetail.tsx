@@ -369,6 +369,7 @@ const PatientDetail = () => {
         }}
         patientId={patient.id}
         consultation={editingConsultation}
+        previousConsultations={consultations}
         anamnesis={hasCompletedAnamnesis ? anamnesis : null}
         onSuccess={refresh}
       />
