@@ -350,7 +350,7 @@ const PatientDetail = () => {
           />
         </TabsContent>
         <TabsContent value="medications" className="mt-4">
-          <MedicationHistory patientId={patient.id} />
+          <MedicationHistory patientId={patient.id} consultations={consultations} />
         </TabsContent>
         <TabsContent value="quotes" className="mt-4">
           <QuoteHistory patientId={patient.id} patientName={patient.name} />

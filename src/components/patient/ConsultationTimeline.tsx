@@ -1,4 +1,4 @@
-import { Calendar, FileText, Stethoscope, Plus, Pencil, Trash2, Pill, Activity, FlaskConical } from "lucide-react";
+import { Calendar, FileText, Stethoscope, Plus, Pencil, Trash2, Activity, FlaskConical } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 
@@ -93,15 +93,6 @@ const ConsultationTimeline = ({ consultations, onNewConsultation, onEditConsulta
                 <div>
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Conduta / Plano Terapêutico</span>
                   <p className="text-foreground font-body mt-0.5">{c.treatment_plan}</p>
-                </div>
-              )}
-
-              {c.prescription_notes && (
-                <div className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
-                  <span className="text-xs font-semibold text-primary uppercase tracking-wider flex items-center gap-1">
-                    <Pill className="w-3.5 h-3.5" /> Prescrição Registrada
-                  </span>
-                  <p className="text-foreground font-body mt-0.5 whitespace-pre-line">{c.prescription_notes}</p>
                 </div>
               )}
 

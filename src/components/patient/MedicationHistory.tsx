@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Pill, Calendar } from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface Props {
   patientId: string;
+  consultations?: Tables<"consultations">[];
 }
 
-const MedicationHistory = ({ patientId }: Props) => {
+const MedicationHistory = ({ patientId, consultations = [] }: Props) => {
   const { data: prescriptions, isLoading } = useQuery({
     queryKey: ["prescriptions", patientId],
     queryFn: async () => {
@@ -20,9 +22,11 @@ const MedicationHistory = ({ patientId }: Props) => {
     },
   });
 
+  const consultationsWithPrescription = consultations.filter((c) => c.prescription_notes?.trim());
+
   if (isLoading) return <div className="text-center py-8 text-muted-foreground text-sm">Carregando...</div>;
 
-  if (!prescriptions || prescriptions.length === 0) {
+  if ((!prescriptions || prescriptions.length === 0) && consultationsWithPrescription.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <Pill className="w-10 h-10 mx-auto mb-3 opacity-40" />
@@ -33,7 +37,24 @@ const MedicationHistory = ({ patientId }: Props) => {
 
   return (
     <div className="space-y-4">
-      {prescriptions.map((rx) => (
+      {consultationsWithPrescription.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Prescrições Registradas em Consulta</p>
+          {consultationsWithPrescription.map((c) => (
+            <div key={c.id} className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                <Calendar className="w-3.5 h-3.5" />
+                {new Date(c.consultation_date).toLocaleDateString("pt-BR")}
+              </div>
+              <div className="flex items-start gap-2">
+                <Pill className="w-3.5 h-3.5 mt-0.5 text-primary" />
+                <p className="text-sm text-foreground font-body whitespace-pre-line">{c.prescription_notes}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {prescriptions?.map((rx) => (
         <div key={rx.id} className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
             <Calendar className="w-3.5 h-3.5" />
