@@ -479,64 +479,6 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
               />
             </div>
 
-            {/* Fotos da Consulta */}
-            <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                  <Camera className="w-4 h-4" />
-                  <span>Fotos da Consulta</span>
-                </div>
-                <label className="cursor-pointer inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
-                  <Plus className="w-3.5 h-3.5" /> Anexar Fotos
-                  <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoSelect} />
-                </label>
-              </div>
-
-              {existingPhotos.length === 0 && pendingPhotos.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nenhuma foto anexada.</p>
-              ) : (
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                  {existingPhotos.map((p) => (
-                    <div key={p.id} className="relative group aspect-square rounded-md overflow-hidden border border-border bg-muted">
-                      {p.url ? (
-                        <img
-                          src={p.url}
-                          alt={p.file_name}
-                          className="w-full h-full object-cover cursor-pointer"
-                          onClick={() => window.open(p.url, "_blank", "noopener,noreferrer")}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => removeExistingPhoto(p)}
-                        className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Remover foto"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                  {pendingPhotos.map((p, i) => (
-                    <div key={i} className="relative group aspect-square rounded-md overflow-hidden border border-border bg-muted">
-                      <img src={p.previewUrl} alt={p.file.name} className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => removePendingPhoto(i)}
-                        className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Remover foto"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* Resumo rápido da Anamnese para consulta durante o atendimento */}
             {anamnesis && Object.values(anamnesis).some((v) => typeof v === "string" && v.trim().length > 0) && (
               <div className="bg-muted/40 border border-border rounded-xl p-3 text-xs">
@@ -855,6 +797,64 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
                 </div>
               </div>
             )}
+
+            {/* Fotos da Consulta */}
+            <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                  <Camera className="w-4 h-4" />
+                  <span>Fotos da Consulta</span>
+                </div>
+                <label className="cursor-pointer inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+                  <Plus className="w-3.5 h-3.5" /> Anexar Fotos
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoSelect} />
+                </label>
+              </div>
+
+              {existingPhotos.length === 0 && pendingPhotos.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhuma foto anexada.</p>
+              ) : (
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  {existingPhotos.map((p) => (
+                    <div key={p.id} className="relative group aspect-square rounded-md overflow-hidden border border-border bg-muted">
+                      {p.url ? (
+                        <img
+                          src={p.url}
+                          alt={p.file_name}
+                          className="w-full h-full object-cover cursor-pointer"
+                          onClick={() => window.open(p.url, "_blank", "noopener,noreferrer")}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeExistingPhoto(p)}
+                        className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remover foto"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {pendingPhotos.map((p, i) => (
+                    <div key={i} className="relative group aspect-square rounded-md overflow-hidden border border-border bg-muted">
+                      <img src={p.previewUrl} alt={p.file.name} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removePendingPhoto(i)}
+                        className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remover foto"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
 
