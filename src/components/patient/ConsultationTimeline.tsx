@@ -265,7 +265,7 @@ const ConsultationTimeline = ({ consultations, patientId, onNewConsultation, onE
                 <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 mb-2">
                   <Images className="w-4 h-4" /> Arquivos Anexados
                 </span>
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                <div className="grid grid-cols-6 sm:grid-cols-9 gap-2">
                   {photosByConsultation[c.id].map((p) => (
                     <a
                       key={p.id}
