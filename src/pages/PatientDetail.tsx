@@ -19,6 +19,7 @@ import EditPatientModal from "@/components/patient/EditPatientModal";
 import QuoteModal from "@/components/patient/QuoteModal";
 import QuoteHistory from "@/components/patient/QuoteHistory";
 import PaymentHistory from "@/components/patient/PaymentHistory";
+import LabExamHistory from "@/components/patient/LabExamHistory";
 import AnamnesisModal, { AnamnesisData, anamnesisLabels } from "@/components/patient/AnamnesisModal";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -335,12 +336,14 @@ const PatientDetail = () => {
         <TabsList className="bg-muted/50">
           <TabsTrigger value="timeline">Histórico de Consultas ({consultations.length})</TabsTrigger>
           <TabsTrigger value="medications">Farmacoterapia</TabsTrigger>
+          <TabsTrigger value="exams">Exames Laboratoriais</TabsTrigger>
           <TabsTrigger value="quotes">Orçamentos</TabsTrigger>
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
         </TabsList>
         <TabsContent value="timeline" className="mt-4">
           <ConsultationTimeline
             consultations={consultations}
+            patientId={patient.id}
             onNewConsultation={handleNewConsultation}
             onEditConsultation={(c) => {
               setEditingConsultation(c);
@@ -351,6 +354,9 @@ const PatientDetail = () => {
         </TabsContent>
         <TabsContent value="medications" className="mt-4">
           <MedicationHistory patientId={patient.id} consultations={consultations} />
+        </TabsContent>
+        <TabsContent value="exams" className="mt-4">
+          <LabExamHistory patientId={patient.id} />
         </TabsContent>
         <TabsContent value="quotes" className="mt-4">
           <QuoteHistory patientId={patient.id} patientName={patient.name} />

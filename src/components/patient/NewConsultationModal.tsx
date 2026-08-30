@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,9 +10,11 @@ import { toast } from "sonner";
 import { AnamnesisData, anamnesisLabels } from "./AnamnesisModal";
 import {
   ChevronDown, ChevronUp, ClipboardList, Calendar, Microscope, Activity, FlaskConical,
-  ArrowLeft, RotateCcw, Syringe,
+  ArrowLeft, RotateCcw, Syringe, Camera, Plus, X, Loader2,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+
+const CONSULTATION_PHOTOS_BUCKET = "consultation-photos";
 
 interface Props {
   open: boolean;
@@ -114,9 +117,54 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
   });
 
   const [exam, setExam] = useState<TrichoscopyExam>(emptyTrichoscopy);
+  const [pendingPhotos, setPendingPhotos] = useState<{ file: File; previewUrl: string }[]>([]);
+
+  const queryClient = useQueryClient();
+
+  const { data: existingPhotos = [] } = useQuery({
+    queryKey: ["consultation_photos", consultation?.id],
+    enabled: !!consultation?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("consultation_photos")
+        .select("*")
+        .eq("consultation_id", consultation!.id)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      if (!data || data.length === 0) return [];
+      const { data: signed } = await supabase.storage
+        .from(CONSULTATION_PHOTOS_BUCKET)
+        .createSignedUrls(data.map((p) => p.file_path), 3600);
+      return data.map((p, i) => ({ ...p, url: signed?.[i]?.signedUrl || "" }));
+    },
+  });
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const next = files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
+    setPendingPhotos((prev) => [...prev, ...next]);
+    e.target.value = "";
+  };
+
+  const removePendingPhoto = (index: number) => {
+    setPendingPhotos((prev) => {
+      const copy = [...prev];
+      URL.revokeObjectURL(copy[index].previewUrl);
+      copy.splice(index, 1);
+      return copy;
+    });
+  };
+
+  const removeExistingPhoto = async (photo: { id: string; file_path: string }) => {
+    if (!confirm("Remover esta foto?")) return;
+    await supabase.storage.from(CONSULTATION_PHOTOS_BUCKET).remove([photo.file_path]);
+    await supabase.from("consultation_photos").delete().eq("id", photo.id);
+    queryClient.invalidateQueries({ queryKey: ["consultation_photos", consultation?.id] });
+  };
 
   useEffect(() => {
     if (open) {
+      setPendingPhotos([]);
       if (consultation) {
         setForm({
           consultation_date: consultation.consultation_date
@@ -272,6 +320,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
     }
 
     let saveError;
+    let savedConsultationId: string | null = consultation?.id ?? null;
     if (consultation?.id) {
       const { error } = await supabase
         .from("consultations")
@@ -279,19 +328,47 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
         .eq("id", consultation.id);
       saveError = error;
     } else {
-      const { error } = await supabase
+      const { data: inserted, error } = await supabase
         .from("consultations")
         .insert({
           patient_id: patientId,
           user_id: user.id,
           ...payload,
-        });
+        })
+        .select("id")
+        .single();
       saveError = error;
+      savedConsultationId = inserted?.id ?? null;
     }
 
     // Atualiza o diagnóstico na ficha do paciente quando preenchido na evolução completa
     if (!saveError && viewMode === "full" && form.diagnosis.trim()) {
       await supabase.from("patients").update({ diagnosis: form.diagnosis.trim() }).eq("id", patientId);
+    }
+
+    // Envia as fotos anexadas nesta sessão do formulário
+    if (!saveError && savedConsultationId && pendingPhotos.length > 0) {
+      let photoFailures = 0;
+      for (const [i, p] of pendingPhotos.entries()) {
+        const safeName = p.file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+        const filePath = `${user.id}/${patientId}/${savedConsultationId}/${Date.now()}_${i}_${safeName}`;
+        const { error: uploadError } = await supabase.storage.from(CONSULTATION_PHOTOS_BUCKET).upload(filePath, p.file);
+        if (uploadError) {
+          photoFailures++;
+          continue;
+        }
+        await supabase.from("consultation_photos").insert({
+          user_id: user.id,
+          patient_id: patientId,
+          consultation_id: savedConsultationId,
+          file_path: filePath,
+          file_name: p.file.name,
+          file_type: p.file.type || null,
+          file_size: p.file.size,
+        });
+      }
+      pendingPhotos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+      if (photoFailures > 0) toast.error(`${photoFailures} foto(s) não puderam ser enviadas.`);
     }
 
     if (saveError) {
@@ -400,6 +477,64 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
                 onChange={(e) => setForm({ ...form, consultation_date: e.target.value })}
                 className="w-44 h-8 text-xs bg-background"
               />
+            </div>
+
+            {/* Fotos da Consulta */}
+            <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                  <Camera className="w-4 h-4" />
+                  <span>Fotos da Consulta</span>
+                </div>
+                <label className="cursor-pointer inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+                  <Plus className="w-3.5 h-3.5" /> Anexar Fotos
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoSelect} />
+                </label>
+              </div>
+
+              {existingPhotos.length === 0 && pendingPhotos.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhuma foto anexada.</p>
+              ) : (
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  {existingPhotos.map((p) => (
+                    <div key={p.id} className="relative group aspect-square rounded-md overflow-hidden border border-border bg-muted">
+                      {p.url ? (
+                        <img
+                          src={p.url}
+                          alt={p.file_name}
+                          className="w-full h-full object-cover cursor-pointer"
+                          onClick={() => window.open(p.url, "_blank", "noopener,noreferrer")}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeExistingPhoto(p)}
+                        className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remover foto"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {pendingPhotos.map((p, i) => (
+                    <div key={i} className="relative group aspect-square rounded-md overflow-hidden border border-border bg-muted">
+                      <img src={p.previewUrl} alt={p.file.name} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removePendingPhoto(i)}
+                        className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remover foto"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Resumo rápido da Anamnese para consulta durante o atendimento */}

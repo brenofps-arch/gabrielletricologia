@@ -1,9 +1,14 @@
-import { Calendar, FileText, Stethoscope, Plus, Pencil, Trash2, FlaskConical, RotateCcw, Syringe } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Calendar, FileText, Stethoscope, Plus, Pencil, Trash2, FlaskConical, RotateCcw, Syringe, Images } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+
+const CONSULTATION_PHOTOS_BUCKET = "consultation-photos";
 
 interface Props {
   consultations: Tables<"consultations">[];
+  patientId: string;
   onNewConsultation?: () => void;
   onEditConsultation?: (consultation: Tables<"consultations">) => void;
   onDeleteConsultation?: (consultationId: string) => void;
@@ -67,7 +72,28 @@ const visitBadge = (visitType: string | null) => {
   return null;
 };
 
-const ConsultationTimeline = ({ consultations, onNewConsultation, onEditConsultation, onDeleteConsultation }: Props) => {
+const ConsultationTimeline = ({ consultations, patientId, onNewConsultation, onEditConsultation, onDeleteConsultation }: Props) => {
+  const { data: photosByConsultation = {} } = useQuery({
+    queryKey: ["consultation_photos_all", patientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("consultation_photos")
+        .select("*")
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      if (!data || data.length === 0) return {} as Record<string, { id: string; file_name: string; url: string }[]>;
+      const { data: signed } = await supabase.storage
+        .from(CONSULTATION_PHOTOS_BUCKET)
+        .createSignedUrls(data.map((p) => p.file_path), 3600);
+      const withUrls = data.map((p, i) => ({ id: p.id, file_name: p.file_name, consultation_id: p.consultation_id, url: signed?.[i]?.signedUrl || "" }));
+      return withUrls.reduce((acc, p) => {
+        (acc[p.consultation_id] ||= []).push(p);
+        return acc;
+      }, {} as Record<string, { id: string; file_name: string; url: string }[]>);
+    },
+  });
+
   if (consultations.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground bg-card border border-border rounded-xl p-8">
@@ -231,6 +257,27 @@ const ConsultationTimeline = ({ consultations, onNewConsultation, onEditConsulta
                     </p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {photosByConsultation[c.id]?.length > 0 && (
+              <div className="pt-3 mt-3 border-t border-border/50">
+                <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 mb-2">
+                  <Images className="w-4 h-4" /> Arquivos Anexados
+                </span>
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  {photosByConsultation[c.id].map((p) => (
+                    <a
+                      key={p.id}
+                      href={p.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="aspect-square rounded-md overflow-hidden border border-border bg-muted block"
+                    >
+                      <img src={p.url} alt={p.file_name} className="w-full h-full object-cover hover:opacity-80 transition-opacity" />
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
           </div>
