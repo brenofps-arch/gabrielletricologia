@@ -31,7 +31,7 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    name: "", phone: "", email: "", condition: "", diagnosis: "", birth_date: "", referral_source: "", cpf: "",
+    name: "", phone: "", email: "", diagnosis: "", birth_date: "", referral_source: "", cpf: "",
   });
 
   useEffect(() => {
@@ -40,7 +40,6 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
         name: patient.name || "",
         phone: patient.phone || "",
         email: patient.email || "",
-        condition: patient.condition || "",
         diagnosis: patient.diagnosis || "",
         birth_date: patient.birth_date || "",
         referral_source: patient.referral_source || "",
@@ -59,7 +58,6 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
         name: form.name.trim(),
         phone: form.phone || null,
         email: form.email || null,
-        condition: form.condition || null,
         diagnosis: form.diagnosis || null,
         birth_date: form.birth_date || null,
         referral_source: form.referral_source || null,
@@ -107,10 +105,6 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
             <Input className="mt-1" placeholder="000.000.000-00"
               value={form.cpf}
               onChange={(e) => setForm({ ...form, cpf: formatCPF(e.target.value) })} />
-          </div>
-          <div>
-            <Label>Queixa inicial</Label>
-            <Input value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value })} placeholder="Ex: Queda capilar há 6 meses" className="mt-1" />
           </div>
           <div>
             <Label>Diagnóstico</Label>

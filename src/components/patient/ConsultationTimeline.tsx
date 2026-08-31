@@ -206,6 +206,14 @@ const ConsultationTimeline = ({ consultations, patientId, onNewConsultation, onE
                     {renderFieldContent(c.procedure_medications)}
                   </div>
                 )}
+                {c.exams_brought && (
+                  <div className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                    <span className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-1.5">
+                      <FlaskConical className="w-4 h-4" /> Exames Laboratoriais
+                    </span>
+                    {renderFieldContent(c.exams_brought)}
+                  </div>
+                )}
                 {c.observations && (
                   <div>
                     <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Observações</span>

@@ -259,9 +259,9 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
         observations: form.observations || null,
         treatment_plan: form.treatment_plan || null,
         prescription_notes: form.prescription_notes || null,
+        exams_brought: form.exams_brought || null,
         chief_complaint: null,
         physical_exam: null,
-        exams_brought: null,
         diagnosis: null,
       };
     } else {
@@ -781,6 +781,16 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
                     value={form.procedure_medications}
                     onChange={(e) => setForm({ ...form, procedure_medications: e.target.value })}
                     placeholder="Ex: Minoxidil injetável, Dutasterida, PRP puro, vitaminas..."
+                    className="mt-1 min-h-[80px]"
+                  />
+                </div>
+
+                <div>
+                  <Label className="font-body text-sm font-semibold">Exames Laboratoriais</Label>
+                  <Textarea
+                    value={form.exams_brought}
+                    onChange={(e) => setForm({ ...form, exams_brought: e.target.value })}
+                    placeholder="Resultados de exames laboratoriais trazidos pelo paciente nesta sessão..."
                     className="mt-1 min-h-[80px]"
                   />
                 </div>

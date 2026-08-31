@@ -218,18 +218,6 @@ const PatientDetail = () => {
         )}
       </div>
 
-      {/* Queixa inicial */}
-      {patient.condition && (
-        <div className="bg-card border border-border rounded-xl p-4">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-            Queixa Inicial
-          </p>
-          <p className="text-base font-medium text-foreground font-body leading-relaxed">
-            {patient.condition}
-          </p>
-        </div>
-      )}
-
       {/* Diagnóstico do Paciente — Destaque Clínico com Tipografia Maior */}
       <div className="bg-mint-light/40 border-2 border-secondary/40 rounded-xl p-4 shadow-sm">
         <div className="flex items-center justify-between mb-1">

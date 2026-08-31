@@ -22,7 +22,7 @@ const Pacientes = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ name: "", phone: "", email: "", condition: "", birth_date: "", referral_source: "", cpf: "" });
+  const [newForm, setNewForm] = useState({ name: "", phone: "", email: "", birth_date: "", referral_source: "", cpf: "" });
   const [saving, setSaving] = useState(false);
 
   // Exclusão — dupla confirmação
@@ -51,7 +51,6 @@ const Pacientes = () => {
       name: newForm.name.trim(),
       phone: newForm.phone || null,
       email: newForm.email || null,
-      condition: newForm.condition || null,
       birth_date: newForm.birth_date || null,
       referral_source: newForm.referral_source || null,
       cpf: newForm.cpf || null,
@@ -60,7 +59,7 @@ const Pacientes = () => {
     if (error) toast.error("Erro ao cadastrar paciente.");
     else {
       toast.success("Paciente cadastrado!");
-      setNewForm({ name: "", phone: "", email: "", condition: "", birth_date: "", referral_source: "", cpf: "" });
+      setNewForm({ name: "", phone: "", email: "", birth_date: "", referral_source: "", cpf: "" });
       setShowNew(false);
       queryClient.invalidateQueries({ queryKey: ["patients"] });
     }
@@ -184,10 +183,6 @@ const Pacientes = () => {
               <Input className="mt-1" placeholder="000.000.000-00"
                 value={newForm.cpf}
                 onChange={(e) => setNewForm({ ...newForm, cpf: formatCPF(e.target.value) })} />
-            </div>
-            <div>
-              <Label>Queixa inicial</Label>
-              <Input value={newForm.condition} onChange={(e) => setNewForm({ ...newForm, condition: e.target.value })} placeholder="Ex: Queda capilar há 6 meses" className="mt-1" />
             </div>
             <div>
               <Label>Como nos conheceu?</Label>
