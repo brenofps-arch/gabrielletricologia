@@ -180,6 +180,14 @@ const ConsultationTimeline = ({ consultations, patientId, onNewConsultation, onE
                     {renderFieldContent(c.treatment_plan)}
                   </div>
                 )}
+                {c.prescription_notes && (
+                  <div className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                    <span className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-1.5">
+                      <Pill className="w-4 h-4" /> Prescrição
+                    </span>
+                    {renderFieldContent(c.prescription_notes)}
+                  </div>
+                )}
               </div>
             ) : c.visit_type === "procedimento" ? (
               <div className="space-y-5 text-sm">
@@ -246,6 +254,15 @@ const ConsultationTimeline = ({ consultations, patientId, onNewConsultation, onE
                   <div>
                     <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Conduta / Plano Terapêutico</span>
                     {renderFieldContent(c.treatment_plan)}
+                  </div>
+                )}
+
+                {c.prescription_notes && (
+                  <div className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                    <span className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-1.5">
+                      <Pill className="w-4 h-4" /> Prescrição
+                    </span>
+                    {renderFieldContent(c.prescription_notes)}
                   </div>
                 )}
 

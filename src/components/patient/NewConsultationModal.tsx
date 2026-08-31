@@ -242,8 +242,8 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
         physical_exam: form.physical_exam_notes || null,
         exams_brought: form.exams_brought || null,
         treatment_plan: form.treatment_plan || null,
+        prescription_notes: form.prescription_notes || null,
         diagnosis: null,
-        prescription_notes: null,
         observations: null,
         procedure_type: null,
         procedure_number: null,
@@ -716,6 +716,15 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
                     value={form.treatment_plan}
                     onChange={(e) => setForm({ ...form, treatment_plan: e.target.value })}
                     placeholder="Descreva a conduta adotada neste retorno..."
+                    className="mt-1 min-h-[80px]"
+                  />
+                </div>
+                <div>
+                  <Label className="font-body text-sm font-semibold">Prescrição</Label>
+                  <Textarea
+                    value={form.prescription_notes}
+                    onChange={(e) => setForm({ ...form, prescription_notes: e.target.value })}
+                    placeholder="Medicamentos, fórmulas manipuladas, tônicos ou loções prescritas..."
                     className="mt-1 min-h-[80px]"
                   />
                 </div>
