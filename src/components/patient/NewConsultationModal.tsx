@@ -80,8 +80,8 @@ const trichoscopyOptions: Record<keyof TrichoscopyExam, string[]> = {
   follicular_opening_present: ["Sim", "Não"],
   follicular_openings: ["Preservadas / Normais", "Diminuídas", "Ausência focal", "Pontos amarelos"],
   hairs_per_fu: ["Predomínio de 1 fio", "1 a 2 fios", "2 a 3 fios (normal)", "3 a 4 fios"],
-  anisotrichosis: ["Não / Ausente", "Presente (> 20%)", "Leve (< 20%)"],
-  vellus: ["Ausentes", "Presentes no vértex", "Presentes na linha anterior", "Acentuados"],
+  anisotrichosis: ["Sim (presente)", "Não (ausente)"],
+  vellus: ["Sim (presente)", "Não (ausente)"],
   hair_morphology: ["Sem alterações", "Tricoptilose (pontas duplas)", "Tricorrexe nodosa", "Fios em ponto de exclamação", "Fios quebradiços", "Cabelos em tufo"],
   perifollicular_sign: ["Ausente / Normal", "Eritema perifolicular", "Descamação peripilar (colarete)", "Hiperqueratose folicular", "Halo branco peripilar"],
   follicular_sign: ["Sem alterações", "Pontos amarelos (Yellow dots)", "Pontos pretos (Black dots)", "Pontos brancos", "Pontos vermelhos", "Halo marrom"],
@@ -258,11 +258,11 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
         procedure_medications: form.procedure_medications || null,
         observations: form.observations || null,
         treatment_plan: form.treatment_plan || null,
+        prescription_notes: form.prescription_notes || null,
         chief_complaint: null,
         physical_exam: null,
         exams_brought: null,
         diagnosis: null,
-        prescription_notes: null,
       };
     } else {
       // Compila os achados do exame macroscópico
@@ -792,6 +792,16 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
                     value={form.treatment_plan}
                     onChange={(e) => setForm({ ...form, treatment_plan: e.target.value })}
                     placeholder="Descreva a conduta adotada..."
+                    className="mt-1 min-h-[70px]"
+                  />
+                </div>
+
+                <div>
+                  <Label className="font-body text-sm font-semibold">Prescrição</Label>
+                  <Textarea
+                    value={form.prescription_notes}
+                    onChange={(e) => setForm({ ...form, prescription_notes: e.target.value })}
+                    placeholder="Medicamentos, fórmulas manipuladas, tônicos ou loções prescritas..."
                     className="mt-1 min-h-[70px]"
                   />
                 </div>
