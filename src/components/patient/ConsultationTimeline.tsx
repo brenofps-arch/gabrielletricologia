@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, FileText, Stethoscope, Plus, Pencil, Trash2, FlaskConical, RotateCcw, Syringe, Images } from "lucide-react";
+import { Calendar, FileText, Stethoscope, Plus, Pencil, Trash2, FlaskConical, RotateCcw, Syringe, Images, Pill } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -208,6 +208,14 @@ const ConsultationTimeline = ({ consultations, patientId, onNewConsultation, onE
                   <div>
                     <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Conduta</span>
                     {renderFieldContent(c.treatment_plan)}
+                  </div>
+                )}
+                {c.prescription_notes && (
+                  <div className="bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                    <span className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-1.5">
+                      <Pill className="w-4 h-4" /> Prescrição
+                    </span>
+                    {renderFieldContent(c.prescription_notes)}
                   </div>
                 )}
               </div>
