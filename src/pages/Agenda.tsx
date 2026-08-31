@@ -170,7 +170,7 @@ const Agenda = () => {
 
       // Salvar no banco local para o Dashboard
       if (!editingId && json.id) {
-        await supabase.from("appointments").insert({
+        const { error: apptError } = await supabase.from("appointments").insert({
           user_id: session!.user.id,
           patient_id: selectedPatient?.id || null,
           google_calendar_event_id: json.id,
@@ -181,6 +181,13 @@ const Agenda = () => {
           notes: form.description || null,
           status: "scheduled",
         });
+        if (apptError) {
+          toast({
+            title: "Evento criado, mas não apareceu no Dashboard",
+            description: "O evento foi criado no Google Calendar, mas houve um erro ao salvar localmente.",
+            variant: "destructive",
+          });
+        }
       }
 
       if (!editingId && form.sendWhatsApp && form.phone.trim()) {

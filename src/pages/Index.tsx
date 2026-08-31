@@ -84,11 +84,11 @@ const Index = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
-        .select("id, title, appointment_date, start_time, status, patients(name)")
+        .select("id, patient_name, notes, appointment_date, appointment_time, status, patients(name)")
         .gte("appointment_date", today)
         .neq("status", "cancelled")
         .order("appointment_date", { ascending: true })
-        .order("start_time", { ascending: true })
+        .order("appointment_time", { ascending: true })
         .limit(6);
       if (error) throw error;
       return data ?? [];
@@ -181,7 +181,7 @@ const Index = () => {
             <div className="space-y-3">
               {upcoming.map((apt: any) => {
                 const isToday = apt.appointment_date === today;
-                const patientName = apt.patients?.name || apt.title;
+                const patientName = apt.patients?.name || apt.patient_name;
                 return (
                   <div
                     key={apt.id}
@@ -190,7 +190,7 @@ const Index = () => {
                     <div className="flex items-center gap-4">
                       <div className="w-16 shrink-0">
                         <p className="text-sm font-semibold text-primary font-body">
-                          {String(apt.start_time).slice(0, 5)}
+                          {String(apt.appointment_time).slice(0, 5)}
                         </p>
                         <p className="text-[10px] text-muted-foreground">
                           {isToday ? "Hoje" : format(new Date(`${apt.appointment_date}T12:00:00`), "dd/MM", { locale: ptBR })}
@@ -198,7 +198,7 @@ const Index = () => {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-foreground">{patientName}</p>
-                        <p className="text-xs text-muted-foreground">{apt.title}</p>
+                        {apt.notes && <p className="text-xs text-muted-foreground">{apt.notes}</p>}
                       </div>
                     </div>
                     <span className="text-xs font-medium px-3 py-1 rounded-full bg-mint/30 text-secondary-foreground">
