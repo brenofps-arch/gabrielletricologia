@@ -77,9 +77,12 @@ const PatientDetail = () => {
   };
 
   const handleDeletePatient = async () => {
-    const { error } = await supabase.from("patients").delete().eq("id", id!);
-    if (error) toast.error("Erro ao excluir paciente.");
-    else {
+    const { data, error } = await supabase.from("patients").delete().eq("id", id!).select("id");
+    if (error) {
+      toast.error("Erro ao excluir paciente.");
+    } else if (!data || data.length === 0) {
+      toast.error("Não foi possível excluir este paciente (sem permissão para esse registro).");
+    } else {
       toast.success("Paciente excluído com sucesso.");
       navigate("/pacientes");
     }
