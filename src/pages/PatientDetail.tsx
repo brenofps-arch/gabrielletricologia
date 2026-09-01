@@ -66,6 +66,8 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
+  const procedureSessionsCount = consultations.filter((c) => c.visit_type === "procedimento").length;
+
   const saveNotes = async () => {
     const { error } = await supabase.from("patients").update({ important_notes: notesValue }).eq("id", id!);
     if (error) toast.error("Erro ao salvar notas.");
@@ -229,9 +231,9 @@ const PatientDetail = () => {
             <span>Diagnóstico Clínico</span>
           </div>
           <div className="flex items-center gap-2">
-            {patient.sessions_count > 0 && (
+            {procedureSessionsCount > 0 && (
               <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-background border border-border text-foreground">
-                {patient.sessions_count} {patient.sessions_count === 1 ? "sessão realizada" : "sessões realizadas"}
+                {procedureSessionsCount} {procedureSessionsCount === 1 ? "sessão realizada" : "sessões realizadas"}
               </span>
             )}
             <Button
