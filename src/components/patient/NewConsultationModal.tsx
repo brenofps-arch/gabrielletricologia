@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AnamnesisData, anamnesisLabels } from "./AnamnesisModal";
+import PhotoLightbox from "./PhotoLightbox";
 import {
   ChevronDown, ChevronUp, ClipboardList, Calendar, Microscope, Activity, FlaskConical,
   ArrowLeft, RotateCcw, Syringe, Camera, Plus, X, Loader2,
@@ -118,6 +119,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
 
   const [exam, setExam] = useState<TrichoscopyExam>(emptyTrichoscopy);
   const [pendingPhotos, setPendingPhotos] = useState<{ file: File; previewUrl: string }[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -165,6 +167,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
   useEffect(() => {
     if (open) {
       setPendingPhotos([]);
+      setLightboxIndex(null);
       if (consultation) {
         setForm({
           consultation_date: consultation.consultation_date
@@ -851,7 +854,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
                           src={p.url}
                           alt={p.file_name}
                           className="w-full h-full object-cover cursor-pointer"
-                          onClick={() => window.open(p.url, "_blank", "noopener,noreferrer")}
+                          onClick={() => setLightboxIndex(existingPhotos.findIndex((ep) => ep.id === p.id))}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -896,6 +899,13 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
           )}
         </DialogFooter>
       </DialogContent>
+
+      <PhotoLightbox
+        photos={existingPhotos}
+        index={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={setLightboxIndex}
+      />
     </Dialog>
   );
 };

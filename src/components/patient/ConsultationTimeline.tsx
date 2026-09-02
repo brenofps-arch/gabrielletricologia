@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Calendar, FileText, Stethoscope, Plus, Pencil, Trash2, FlaskConical, RotateCcw, Syringe, Images, Pill } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import PhotoLightbox from "./PhotoLightbox";
 
 const CONSULTATION_PHOTOS_BUCKET = "consultation-photos";
 
@@ -73,6 +75,8 @@ const visitBadge = (visitType: string | null) => {
 };
 
 const ConsultationTimeline = ({ consultations, patientId, onNewConsultation, onEditConsultation, onDeleteConsultation }: Props) => {
+  const [lightbox, setLightbox] = useState<{ photos: { url: string; file_name: string }[]; index: number } | null>(null);
+
   const { data: photosByConsultation = {} } = useQuery({
     queryKey: ["consultation_photos_all", patientId],
     queryFn: async () => {
@@ -299,16 +303,15 @@ const ConsultationTimeline = ({ consultations, patientId, onNewConsultation, onE
                   <Images className="w-4 h-4" /> Arquivos Anexados
                 </span>
                 <div className="grid grid-cols-6 sm:grid-cols-9 gap-2">
-                  {photosByConsultation[c.id].map((p) => (
-                    <a
+                  {photosByConsultation[c.id].map((p, i) => (
+                    <button
+                      type="button"
                       key={p.id}
-                      href={p.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      onClick={() => setLightbox({ photos: photosByConsultation[c.id], index: i })}
                       className="aspect-square rounded-md overflow-hidden border border-border bg-muted block"
                     >
                       <img src={p.url} alt={p.file_name} className="w-full h-full object-cover hover:opacity-80 transition-opacity" />
-                    </a>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -316,6 +319,13 @@ const ConsultationTimeline = ({ consultations, patientId, onNewConsultation, onE
           </div>
         </div>
       ))}
+
+      <PhotoLightbox
+        photos={lightbox?.photos ?? []}
+        index={lightbox ? lightbox.index : null}
+        onClose={() => setLightbox(null)}
+        onIndexChange={(i) => setLightbox((l) => (l ? { ...l, index: i } : l))}
+      />
     </div>
   );
 };
