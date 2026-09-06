@@ -29,24 +29,34 @@ const CLINIC_ADDRESSES: { city: string; lines: string[] }[] = [
   { city: "Niterói - RJ", lines: ["Edifício Central Park - Sala 310", "Rua Otávio Carneiro, 143, Icaraí"] },
 ];
 
-let fontsRegistered = false;
+// Começa a carregar os módulos de fonte assim que este arquivo é importado
+// (não espera o clique do botão). Assim, quando o usuário efetivamente gera
+// o PDF, o import() abaixo resolve quase instantaneamente (cache do navegador)
+// em vez de depender de uma nova busca de rede na hora do clique — o que em
+// alguns navegadores pode fazer o download programático ser bloqueado
+// silenciosamente por perda do "gesto do usuário".
+const fontModulesPromise = Promise.all([
+  import("@/lib/playfairFontBase64"),
+  import("@/lib/bodyFontsBase64"),
+]);
+
+// As fontes precisam ser registradas em CADA instância de jsPDF (o registro
+// não é compartilhado entre documentos), por isso não há cache "já registrado".
 async function ensureHeadingFont(doc: jsPDF) {
-  if (fontsRegistered) return;
-  const { PLAYFAIR_REGULAR, PLAYFAIR_BOLD } = await import("@/lib/playfairFontBase64");
+  const [{ PLAYFAIR_REGULAR, PLAYFAIR_BOLD }, { MONTSERRAT_REGULAR, MONTSERRAT_BOLD, JULIUS_SANS_ONE_REGULAR }] =
+    await fontModulesPromise;
+
   doc.addFileToVFS("PlayfairDisplay-Regular.ttf", PLAYFAIR_REGULAR);
   doc.addFont("PlayfairDisplay-Regular.ttf", HEADING_FONT, "normal");
   doc.addFileToVFS("PlayfairDisplay-Bold.ttf", PLAYFAIR_BOLD);
   doc.addFont("PlayfairDisplay-Bold.ttf", HEADING_FONT, "bold");
 
-  const { MONTSERRAT_REGULAR, MONTSERRAT_BOLD, JULIUS_SANS_ONE_REGULAR } = await import("@/lib/bodyFontsBase64");
   doc.addFileToVFS("Montserrat-Regular.ttf", MONTSERRAT_REGULAR);
   doc.addFont("Montserrat-Regular.ttf", BODY_FONT, "normal");
   doc.addFileToVFS("Montserrat-Bold.ttf", MONTSERRAT_BOLD);
   doc.addFont("Montserrat-Bold.ttf", BODY_FONT, "bold");
   doc.addFileToVFS("JuliusSansOne-Regular.ttf", JULIUS_SANS_ONE_REGULAR);
   doc.addFont("JuliusSansOne-Regular.ttf", FOOTER_FONT, "normal");
-
-  fontsRegistered = true;
 }
 
 export async function generateQuotePDF(data: QuotePDFData) {
@@ -68,14 +78,20 @@ export async function generateQuotePDF(data: QuotePDFData) {
   const textMuted: [number, number, number] = [140, 125, 115];
 
   const drawWatermark = () => {
-    const watermarkSize = 130;
-    const wmX = pageWidth * 0.52;
-    const wmY = pageHeight * 0.4;
-    const gState = (doc as any).GState({ opacity: 0.05 });
-    doc.saveGraphicsState();
-    doc.setGState(gState);
-    doc.addImage(logoBase64, "JPEG", wmX, wmY, watermarkSize, watermarkSize);
-    doc.restoreGraphicsState();
+    // A marca d'água é decorativa — se algo falhar aqui (ex: plugin GState
+    // indisponível), o restante do PDF ainda precisa ser gerado normalmente.
+    try {
+      const watermarkSize = 130;
+      const wmX = pageWidth * 0.52;
+      const wmY = pageHeight * 0.4;
+      const gState = (doc as any).GState({ opacity: 0.05 });
+      doc.saveGraphicsState();
+      doc.setGState(gState);
+      doc.addImage(logoBase64, "JPEG", wmX, wmY, watermarkSize, watermarkSize);
+      doc.restoreGraphicsState();
+    } catch (err) {
+      console.error("Falha ao desenhar marca d'água do orçamento:", err);
+    }
   };
 
   // ── CABEÇALHO (consolidado) ───────────────────────────────────────

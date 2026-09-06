@@ -75,19 +75,24 @@ const QuoteModal = ({ open, onOpenChange, patientId, patientName, onSuccess }: P
     } else {
       toast.success("Orçamento salvo com sucesso!");
       if (generatePDF) {
-        generateQuotePDF({
-          patientName,
-          date: new Date().toLocaleDateString("pt-BR"),
-          validityDays: form.validityDays,
-          includedItems: form.includedItems,
-          packageName: form.packageName,
-          priceFull,
-          price3x,
-          price6x,
-          pixKey: form.pixKey || null,
-          paymentMethods: form.paymentMethods,
-          notes: form.notes,
-        });
+        try {
+          await generateQuotePDF({
+            patientName,
+            date: new Date().toLocaleDateString("pt-BR"),
+            validityDays: form.validityDays,
+            includedItems: form.includedItems,
+            packageName: form.packageName,
+            priceFull,
+            price3x,
+            price6x,
+            pixKey: form.pixKey || null,
+            paymentMethods: form.paymentMethods,
+            notes: form.notes,
+          });
+        } catch (pdfError) {
+          console.error("Erro ao gerar PDF do orçamento:", pdfError);
+          toast.error("Orçamento salvo, mas houve um erro ao gerar o PDF.");
+        }
       }
       setForm(emptyForm);
       onSuccess();

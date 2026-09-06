@@ -212,19 +212,26 @@ const QuoteHistory = ({ patientId, patientName }: Props) => {
 
               <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" className="gap-1.5"
-                  onClick={() => generateQuotePDF({
-                    patientName,
-                    date: new Date(q.created_at).toLocaleDateString("pt-BR"),
-                    validityDays: q.validity_days,
-                    includedItems: q.included_items || (q.quote_items ?? []).map((it: any) => it.procedure_name).join("\n"),
-                    packageName: q.package_name || "",
-                    priceFull: q.price_full != null ? Number(q.price_full) : Number(q.total_value),
-                    price3x: q.price_3x != null ? Number(q.price_3x) : null,
-                    price6x: q.price_6x != null ? Number(q.price_6x) : null,
-                    pixKey: q.pix_key || null,
-                    paymentMethods: q.payment_methods || "",
-                    notes: q.notes,
-                  })}>
+                  onClick={async () => {
+                    try {
+                      await generateQuotePDF({
+                        patientName,
+                        date: new Date(q.created_at).toLocaleDateString("pt-BR"),
+                        validityDays: q.validity_days,
+                        includedItems: q.included_items || (q.quote_items ?? []).map((it: any) => it.procedure_name).join("\n"),
+                        packageName: q.package_name || "",
+                        priceFull: q.price_full != null ? Number(q.price_full) : Number(q.total_value),
+                        price3x: q.price_3x != null ? Number(q.price_3x) : null,
+                        price6x: q.price_6x != null ? Number(q.price_6x) : null,
+                        pixKey: q.pix_key || null,
+                        paymentMethods: q.payment_methods || "",
+                        notes: q.notes,
+                      });
+                    } catch (pdfError) {
+                      console.error("Erro ao gerar PDF do orçamento:", pdfError);
+                      toast.error("Erro ao gerar o PDF do orçamento.");
+                    }
+                  }}>
                   <FileDown className="w-3.5 h-3.5" /> Baixar PDF
                 </Button>
                 <Button variant="outline" size="sm" className="gap-1.5 text-green-700 border-green-300 hover:bg-green-50"
