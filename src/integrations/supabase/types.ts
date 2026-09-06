@@ -638,7 +638,9 @@ export type Database = {
           created_at: string
           id: string
           image_use_clause: boolean
+          included_items: string | null
           notes: string | null
+          package_name: string | null
           paid_amount: number | null
           patient_id: string
           payment_date: string | null
@@ -646,6 +648,10 @@ export type Database = {
           payment_methods: string | null
           payment_notes: string | null
           payment_status: string | null
+          pix_key: string | null
+          price_3x: number | null
+          price_6x: number | null
+          price_full: number | null
           total_value: number
           updated_at: string
           user_id: string
@@ -655,7 +661,9 @@ export type Database = {
           created_at?: string
           id?: string
           image_use_clause?: boolean
+          included_items?: string | null
           notes?: string | null
+          package_name?: string | null
           paid_amount?: number | null
           patient_id: string
           payment_date?: string | null
@@ -663,6 +671,10 @@ export type Database = {
           payment_methods?: string | null
           payment_notes?: string | null
           payment_status?: string | null
+          pix_key?: string | null
+          price_3x?: number | null
+          price_6x?: number | null
+          price_full?: number | null
           total_value?: number
           updated_at?: string
           user_id: string
@@ -672,7 +684,9 @@ export type Database = {
           created_at?: string
           id?: string
           image_use_clause?: boolean
+          included_items?: string | null
           notes?: string | null
+          package_name?: string | null
           paid_amount?: number | null
           patient_id?: string
           payment_date?: string | null
@@ -680,6 +694,10 @@ export type Database = {
           payment_methods?: string | null
           payment_notes?: string | null
           payment_status?: string | null
+          pix_key?: string | null
+          price_3x?: number | null
+          price_6x?: number | null
+          price_full?: number | null
           total_value?: number
           updated_at?: string
           user_id?: string

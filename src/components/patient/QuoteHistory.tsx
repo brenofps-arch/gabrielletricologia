@@ -172,8 +172,8 @@ const QuoteHistory = ({ patientId, patientName }: Props) => {
                     {new Date(q.created_at).toLocaleDateString("pt-BR")}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Validade: {q.validity_days} dias · {q.quote_items.length}{" "}
-                    {q.quote_items.length === 1 ? "item" : "itens"}
+                    Validade: {q.validity_days} dias
+                    {q.package_name ? ` · ${q.package_name}` : ""}
                   </p>
                 </div>
                 <div className="text-right flex flex-col items-end gap-1">
@@ -186,14 +186,22 @@ const QuoteHistory = ({ patientId, patientName }: Props) => {
                 </div>
               </div>
 
-              <ul className="text-sm text-muted-foreground space-y-1 mb-3">
-                {q.quote_items.map((it: any) => (
-                  <li key={it.id} className="flex justify-between">
-                    <span>{it.procedure_name}</span>
-                    <span>{Number(it.value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
-                  </li>
-                ))}
-              </ul>
+              {q.included_items ? (
+                <ul className="text-sm text-muted-foreground space-y-1 mb-3 list-disc list-inside">
+                  {q.included_items.split("\n").filter(Boolean).map((line: string, i: number) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <ul className="text-sm text-muted-foreground space-y-1 mb-3">
+                  {q.quote_items?.map((it: any) => (
+                    <li key={it.id} className="flex justify-between">
+                      <span>{it.procedure_name}</span>
+                      <span>{Number(it.value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               {q.payment_method && (
                 <p className="text-xs text-muted-foreground mb-3">
@@ -208,12 +216,13 @@ const QuoteHistory = ({ patientId, patientName }: Props) => {
                     patientName,
                     date: new Date(q.created_at).toLocaleDateString("pt-BR"),
                     validityDays: q.validity_days,
+                    includedItems: q.included_items || (q.quote_items ?? []).map((it: any) => it.procedure_name).join("\n"),
+                    packageName: q.package_name || "",
+                    priceFull: q.price_full != null ? Number(q.price_full) : Number(q.total_value),
+                    price3x: q.price_3x != null ? Number(q.price_3x) : null,
+                    price6x: q.price_6x != null ? Number(q.price_6x) : null,
+                    pixKey: q.pix_key || null,
                     paymentMethods: q.payment_methods || "",
-                    items: q.quote_items.map((it: any) => ({
-                      procedure_name: it.procedure_name,
-                      description: it.description,
-                      value: Number(it.value),
-                    })),
                     notes: q.notes,
                   })}>
                   <FileDown className="w-3.5 h-3.5" /> Baixar PDF

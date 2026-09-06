@@ -4,28 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, FileDown } from "lucide-react";
+import { FileDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { generateQuotePDF } from "@/lib/generateQuotePDF";
-
-interface QuoteItem {
-  procedure_name: string;
-  description: string;
-  value: string;
-  installments: string;
-}
-
-const SUGGESTIONS = [
-  "Mesoterapia Capilar",
-  "MMP",
-  "Mesoject Gun",
-  "Microlyzer",
-  "PRP",
-  "LEDterapia",
-  "Programa de Acompanhamento 4 meses",
-  "Programa de Acompanhamento 6 meses",
-];
 
 interface Props {
   open: boolean;
@@ -35,32 +17,32 @@ interface Props {
   onSuccess: () => void;
 }
 
-const DEFAULT_PAYMENT = "Dinheiro, Pix, débito ou crédito";
+const DEFAULT_PAYMENT = "Débito ou crédito até 6x";
+const DEFAULT_PIX_KEY = "43.680.391.0001-45";
+
+const emptyForm = {
+  includedItems: "",
+  packageName: "",
+  priceFull: "",
+  price3x: "",
+  price6x: "",
+  pixKey: DEFAULT_PIX_KEY,
+  paymentMethods: DEFAULT_PAYMENT,
+  validityDays: 30,
+  notes: "",
+};
 
 const QuoteModal = ({ open, onOpenChange, patientId, patientName, onSuccess }: Props) => {
   const [loading, setLoading] = useState(false);
-  const [notes, setNotes] = useState("");
-  const [validityDays, setValidityDays] = useState(30);
-  const [paymentMethods, setPaymentMethods] = useState(DEFAULT_PAYMENT);
-  const [items, setItems] = useState<QuoteItem[]>([
-    { procedure_name: "", description: "", value: "", installments: "" },
-  ]);
-
-  const addItem = () =>
-    setItems([...items, { procedure_name: "", description: "", value: "", installments: "" }]);
-  const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
-  const updateItem = (i: number, field: keyof QuoteItem, value: string) => {
-    const updated = [...items];
-    updated[i][field] = value;
-    setItems(updated);
-  };
-
-  const total = items.reduce((sum, it) => sum + (parseFloat(it.value) || 0), 0);
+  const [form, setForm] = useState(emptyForm);
 
   const handleSubmit = async (generatePDF: boolean) => {
-    const validItems = items.filter((i) => i.procedure_name.trim());
-    if (validItems.length === 0) {
-      toast.error("Adicione ao menos um procedimento.");
+    if (!form.includedItems.trim()) {
+      toast.error("Descreva o que está incluso no orçamento.");
+      return;
+    }
+    if (!form.priceFull || isNaN(Number(form.priceFull))) {
+      toast.error("Informe o valor à vista.");
       return;
     }
 
@@ -68,54 +50,46 @@ const QuoteModal = ({ open, onOpenChange, patientId, patientName, onSuccess }: P
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { toast.error("Faça login."); setLoading(false); return; }
 
-    const { data: quote, error } = await supabase.from("quotes").insert({
+    const priceFull = parseFloat(form.priceFull);
+    const price3x = form.price3x ? parseFloat(form.price3x) : null;
+    const price6x = form.price6x ? parseFloat(form.price6x) : null;
+
+    const { error } = await supabase.from("quotes").insert({
       patient_id: patientId,
       user_id: user.id,
-      validity_days: validityDays,
-      payment_methods: paymentMethods,
+      validity_days: form.validityDays,
+      payment_methods: form.paymentMethods,
+      included_items: form.includedItems,
+      package_name: form.packageName || null,
+      price_full: priceFull,
+      price_3x: price3x,
+      price_6x: price6x,
+      pix_key: form.pixKey || null,
       image_use_clause: false,
-      notes,
-      total_value: total,
-    }).select().single();
+      notes: form.notes || null,
+      total_value: priceFull,
+    });
 
-    if (error || !quote) {
+    if (error) {
       toast.error("Erro ao salvar orçamento.");
-      setLoading(false);
-      return;
-    }
-
-    const { error: itemsError } = await supabase.from("quote_items").insert(
-      validItems.map((item) => ({
-        quote_id: quote.id,
-        procedure_name: item.procedure_name,
-        description: item.description || null,
-        value: parseFloat(item.value) || 0,
-      }))
-    );
-
-    if (itemsError) {
-      toast.error("Erro ao salvar itens do orçamento.");
     } else {
       toast.success("Orçamento salvo com sucesso!");
       if (generatePDF) {
         generateQuotePDF({
           patientName,
           date: new Date().toLocaleDateString("pt-BR"),
-          validityDays,
-          paymentMethods,
-          items: validItems.map((i) => ({
-            procedure_name: i.procedure_name,
-            description: i.description || null,
-            value: parseFloat(i.value) || 0,
-            installments: i.installments || null,
-          })),
-          notes,
+          validityDays: form.validityDays,
+          includedItems: form.includedItems,
+          packageName: form.packageName,
+          priceFull,
+          price3x,
+          price6x,
+          pixKey: form.pixKey || null,
+          paymentMethods: form.paymentMethods,
+          notes: form.notes,
         });
       }
-      setItems([{ procedure_name: "", description: "", value: "", installments: "" }]);
-      setNotes("");
-      setValidityDays(30);
-      setPaymentMethods(DEFAULT_PAYMENT);
+      setForm(emptyForm);
       onSuccess();
       onOpenChange(false);
     }
@@ -124,117 +98,103 @@ const QuoteModal = ({ open, onOpenChange, patientId, patientName, onSuccess }: P
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-xl">Gerar Orçamento</DialogTitle>
         </DialogHeader>
 
-        <div className="mb-3">
-          <p className="text-xs text-muted-foreground font-body mb-2">Sugestões rápidas:</p>
-          <div className="flex flex-wrap gap-1.5">
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => {
-                  const emptyIdx = items.findIndex((i) => !i.procedure_name.trim());
-                  if (emptyIdx >= 0) updateItem(emptyIdx, "procedure_name", s);
-                  else setItems([...items, { procedure_name: s, description: "", value: "", installments: "" }]);
-                }}
-                className="text-xs px-2.5 py-1 rounded-full bg-accent text-accent-foreground hover:bg-primary/10 transition-colors"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="space-y-4">
-          {items.map((item, i) => (
-            <div key={i} className="border border-border rounded-lg p-3 space-y-2 bg-muted/30">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">Item {i + 1}</span>
-                {items.length > 1 && (
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(i)}>
-                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                  </Button>
-                )}
-              </div>
+          <div>
+            <Label className="font-body text-sm">O que está incluso *</Label>
+            <Textarea
+              value={form.includedItems}
+              onChange={(e) => setForm({ ...form, includedItems: e.target.value })}
+              placeholder={"Ex:\n6 reavaliações presenciais\n3 sessões de MMP (Intradermoterapia Capilar)\n3 sessões de PRP (Plasma Rico em Plaquetas)"}
+              className="mt-1"
+              rows={4}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Um item por linha. As reavaliações listadas aqui fazem parte do mesmo pacote das sessões de procedimento — padronize como "X sessões de [Sigla] ([Nome completo do procedimento])".
+            </p>
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <Label className="font-body text-sm font-semibold">Investimento</Label>
+            <div className="mt-2 space-y-2">
               <Input
-                placeholder="Procedimento"
-                value={item.procedure_name}
-                onChange={(e) => updateItem(i, "procedure_name", e.target.value)}
+                placeholder="Nome do pacote (ex: 3 sessões de MMP + 3 sessões de PRP)"
+                value={form.packageName}
+                onChange={(e) => setForm({ ...form, packageName: e.target.value })}
               />
-              <Textarea
-                placeholder="Descrição (opcional)"
-                value={item.description}
-                onChange={(e) => updateItem(i, "description", e.target.value)}
-                rows={2}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">R$</span>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">À vista (R$) *</Label>
                   <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0,00"
-                    value={item.value}
-                    onChange={(e) => updateItem(i, "value", e.target.value)}
+                    type="number" step="0.01" min="0" placeholder="0,00"
+                    value={form.priceFull}
+                    onChange={(e) => setForm({ ...form, priceFull: e.target.value })}
                   />
                 </div>
                 <div>
+                  <Label className="text-xs text-muted-foreground">Em 3x (R$)</Label>
                   <Input
-                    placeholder="Parcelamento (ex: até 6x com juros)"
-                    value={item.installments}
-                    onChange={(e) => updateItem(i, "installments", e.target.value)}
+                    type="number" step="0.01" min="0" placeholder="0,00"
+                    value={form.price3x}
+                    onChange={(e) => setForm({ ...form, price3x: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Em 6x (R$)</Label>
+                  <Input
+                    type="number" step="0.01" min="0" placeholder="0,00"
+                    value={form.price6x}
+                    onChange={(e) => setForm({ ...form, price6x: e.target.value })}
                   />
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
 
-        <Button variant="outline" size="sm" onClick={addItem} className="gap-1.5 mt-2">
-          <Plus className="w-3.5 h-3.5" /> Adicionar Item
-        </Button>
+          <div className="border-t border-border pt-4 space-y-2">
+            <Label className="font-body text-sm font-semibold">Formas de Pagamento</Label>
+            <div>
+              <Label className="text-xs text-muted-foreground">Chave PIX (CNPJ)</Label>
+              <Input
+                placeholder="Ex: 43.680.391.0001-45"
+                value={form.pixKey}
+                onChange={(e) => setForm({ ...form, pixKey: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Outras formas</Label>
+              <Textarea
+                value={form.paymentMethods}
+                onChange={(e) => setForm({ ...form, paymentMethods: e.target.value })}
+                rows={2}
+              />
+            </div>
+          </div>
 
-        <div className="mt-4 flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20">
-          <span className="text-sm font-medium text-foreground">Total</span>
-          <span className="text-lg font-heading font-semibold text-primary">
-            {total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-          </span>
-        </div>
+          <div className="border-t border-border pt-4">
+            <Label className="font-body text-sm">Validade (dias)</Label>
+            <Input
+              type="number"
+              min="1"
+              value={form.validityDays}
+              onChange={(e) => setForm({ ...form, validityDays: parseInt(e.target.value) || 30 })}
+              className="mt-1 w-32"
+            />
+          </div>
 
-        <div className="mt-4">
-          <Label className="font-body text-sm">Validade (dias)</Label>
-          <Input
-            type="number"
-            min="1"
-            value={validityDays}
-            onChange={(e) => setValidityDays(parseInt(e.target.value) || 30)}
-            className="mt-1 w-32"
-          />
-        </div>
-
-        <div className="mt-3">
-          <Label className="font-body text-sm">Formas de pagamento</Label>
-          <Textarea
-            value={paymentMethods}
-            onChange={(e) => setPaymentMethods(e.target.value)}
-            rows={2}
-            className="mt-1"
-          />
-        </div>
-
-        <div className="mt-3">
-          <Label className="font-body text-sm">Observações</Label>
-          <Textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Orientações adicionais..."
-            className="mt-1"
-          />
+          <div>
+            <Label className="font-body text-sm">Observações</Label>
+            <Textarea
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              placeholder="Orientações adicionais..."
+              className="mt-1"
+            />
+          </div>
         </div>
 
         <DialogFooter className="gap-2">
