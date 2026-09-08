@@ -98,7 +98,7 @@ export async function generateQuotePDF(data: QuotePDFData) {
   doc.addImage(logoBase64, "JPEG", pageWidth - margin - 26, 14, 26, 26);
 
   y = 30;
-  doc.setFontSize(19);
+  doc.setFontSize(22);
   doc.setFont(HEADING_FONT, "bold");
   doc.setTextColor(...titleColor);
   doc.text("Orçamento", pageWidth / 2, y, { align: "center" });
@@ -151,7 +151,7 @@ export async function generateQuotePDF(data: QuotePDFData) {
   doc.roundedRect(margin, includedBoxTop, contentWidth, includedBoxHeight, 2.5, 2.5, "FD");
 
   let iy = includedBoxTop + 8;
-  doc.setTextColor(...textDark);
+  doc.setTextColor(...textMuted);
   includedWrapped.forEach((line: string) => {
     doc.setFont(BODY_FONT, "bold");
     doc.text("–", margin + 6, iy);
@@ -169,9 +169,8 @@ export async function generateQuotePDF(data: QuotePDFData) {
 
   y += 6;
   const investBoxTop = y;
-  let investBoxHeight = 10;
-  if (data.packageName.trim()) investBoxHeight += 6.5;
-  if (data.priceFull != null) investBoxHeight += 13;
+  let investBoxHeight = 12;
+  if (data.priceFull != null) investBoxHeight += 15;
   if (data.price3x != null) investBoxHeight += 6.5;
   if (data.price6x != null) investBoxHeight += 6.5;
 
@@ -180,14 +179,7 @@ export async function generateQuotePDF(data: QuotePDFData) {
   doc.setLineWidth(0.5);
   doc.roundedRect(margin, investBoxTop, contentWidth, investBoxHeight, 2.5, 2.5, "FD");
 
-  let vy = investBoxTop + 8;
-  if (data.packageName.trim()) {
-    doc.setFontSize(9.5);
-    doc.setFont(BODY_FONT, "bold");
-    doc.setTextColor(...textMuted);
-    doc.text(data.packageName, margin + 8, vy);
-    vy += 9;
-  }
+  let vy = investBoxTop + 14;
   if (data.priceFull != null) {
     doc.setFontSize(20);
     doc.setFont(HEADING_FONT, "bold");
@@ -227,7 +219,7 @@ export async function generateQuotePDF(data: QuotePDFData) {
   y += 8;
   doc.setFontSize(10);
   doc.setFont(BODY_FONT, "normal");
-  doc.setTextColor(...textDark);
+  doc.setTextColor(...textMuted);
   if (data.pixKey?.trim()) {
     doc.setFont(BODY_FONT, "bold");
     doc.text("Chave PIX (CNPJ):", margin, y);
@@ -259,10 +251,11 @@ export async function generateQuotePDF(data: QuotePDFData) {
   }
 
   // ── RODAPÉ (faixa com endereços) ──────────────────────────────────
-  const footerIndent = margin + 12;
-  const addrColGap = 10;
-  const addrColWidth = (pageWidth - footerIndent - margin - 2 * addrColGap) / 3;
-  const addrLineHeight = 3.7;
+  const footerIndent = 14;
+  const footerRightMargin = 14;
+  const addrColGap = 13;
+  const addrColWidth = (pageWidth - footerIndent - footerRightMargin - 2 * addrColGap) / 3;
+  const addrLineHeight = 4.6;
 
   doc.setFontSize(7);
   const wrappedAddresses = CLINIC_ADDRESSES.map((col) => ({
@@ -274,12 +267,12 @@ export async function generateQuotePDF(data: QuotePDFData) {
   );
 
   // Offsets relativos ao topo da faixa (calculados antes de sabermos a altura final da faixa)
-  const offName = 11.5;
-  const offMedicina = offName + 5;
-  const offAddrStart = offMedicina + 7;
+  const offName = 12;
+  const offMedicina = offName + 6;
+  const offAddrStart = offMedicina + 9;
   const offAfterAddr = offAddrStart + maxAddrLines * addrLineHeight;
-  const offTelefone = offAfterAddr + 4.5;
-  const footerHeight = offTelefone + 6;
+  const offTelefone = offAfterAddr + 6;
+  const footerHeight = offTelefone + 7;
   const footerTop = pageHeight - footerHeight;
 
   doc.setFillColor(...footerBrown);
@@ -288,13 +281,10 @@ export async function generateQuotePDF(data: QuotePDFData) {
   doc.setFontSize(15);
   doc.setFont(FOOTER_FONT, "normal");
   doc.setTextColor(...textDark);
-  doc.setCharSpace(2);
-  doc.text("DRA. GABRIELLE SAGRILLO", footerIndent, footerTop + offName);
+  doc.text("DRA. GABRIELLE SAGRILLO", pageWidth / 2, footerTop + offName, { align: "center" });
 
   doc.setFontSize(7.5);
-  doc.setCharSpace(2);
-  doc.text("MEDICINA CAPILAR", footerIndent, footerTop + offMedicina);
-  doc.setCharSpace(0);
+  doc.text("MEDICINA CAPILAR", pageWidth / 2, footerTop + offMedicina, { align: "center" });
 
   wrappedAddresses.forEach((col, i) => {
     const colX = footerIndent + i * (addrColWidth + addrColGap);
@@ -315,10 +305,18 @@ export async function generateQuotePDF(data: QuotePDFData) {
     });
   });
 
+  // O align:"center" do jsPDF ignora o charSpace no cálculo de largura, então
+  // com letras espaçadas é preciso centralizar manualmente (largura do texto
+  // + o espaçamento extra entre cada caractere).
+  const telefoneText = "TELEFONE: (27) 99244-9495  ·  CRM 18090-ES";
+  const telefoneCharSpace = 0.6;
   doc.setFontSize(7.5);
   doc.setFont(FOOTER_FONT, "normal");
   doc.setTextColor(...textDark);
-  doc.text("TELEFONE: (27) 99244-9495  ·  CRM 18090-ES", pageWidth / 2, footerTop + offTelefone, { align: "center" });
+  const telefoneWidth = doc.getTextWidth(telefoneText) + telefoneCharSpace * (telefoneText.length - 1);
+  doc.setCharSpace(telefoneCharSpace);
+  doc.text(telefoneText, pageWidth / 2 - telefoneWidth / 2, footerTop + offTelefone);
+  doc.setCharSpace(0);
 
   doc.save(`orcamento_${data.patientName.replace(/\s+/g, "_")}_${data.date.replace(/\//g, "-")}.pdf`);
 }
