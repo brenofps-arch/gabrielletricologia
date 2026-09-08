@@ -7,10 +7,9 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pill, Activity, HeartPulse, Users, Calendar, Scissors, Sparkles, User, FileText, FlaskConical } from "lucide-react";
+import { Pill, Activity, HeartPulse, Users, Calendar, Scissors, Sparkles, User } from "lucide-react";
 
 export interface AnamnesisData {
-  current_illness_history: string;
   // Dados Pessoais e Sociais
   profession: string;
   marital_status: string;
@@ -45,11 +44,9 @@ export interface AnamnesisData {
   haircare_routine_products: string;
   haircare_scalp_symptoms: string;
   haircare_previous_treatments: string;
-  exams_brought: string;
 }
 
 export const emptyAnamnesis: AnamnesisData = {
-  current_illness_history: "",
   profession: "",
   marital_status: "",
   has_children: "",
@@ -82,11 +79,9 @@ export const emptyAnamnesis: AnamnesisData = {
   haircare_routine_products: "",
   haircare_scalp_symptoms: "",
   haircare_previous_treatments: "",
-  exams_brought: "",
 };
 
 export const anamnesisLabels: Record<keyof AnamnesisData, string> = {
-  current_illness_history: "Histórico da doença atual",
   // Dados Pessoais e Sociais
   profession: "Profissão",
   marital_status: "Estado civil",
@@ -121,7 +116,6 @@ export const anamnesisLabels: Record<keyof AnamnesisData, string> = {
   haircare_routine_products: "Produtos em uso / Rotina capilar (shampoos, tônicos, óleos...)",
   haircare_scalp_symptoms: "Sintomas no couro cabeludo (coceira, descamação, dor/tricodinia, oleosidade...)",
   haircare_previous_treatments: "Tratamentos capilares prévios (Minoxidil, MMP, LED, etc.)",
-  exams_brought: "Exames trazidos pelo paciente (resultados e observações)",
 };
 
 interface Props {
@@ -313,15 +307,6 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
         </div>
 
         <div className="space-y-6 py-2">
-          {/* Histórico da Doença Atual */}
-          <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <FileText className="w-4 h-4 text-primary" />
-              <span>Histórico da Doença Atual</span>
-            </div>
-            {renderField("current_illness_history", "Descreva a queixa e o histórico da doença atual do paciente...", true)}
-          </div>
-
           {/* Seção 0: Dados Pessoais e Sociais */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -443,15 +428,6 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
               {renderField("haircare_scalp_symptoms", "Ex: Coceira leve, descamação, dor no topo da cabeça...", true)}
               {renderField("haircare_previous_treatments", "Ex: Minoxidil 5% tópico por 1 ano, MMP prévio...", true)}
             </div>
-          </div>
-
-          {/* Seção 6: Exames Trazidos pelo Paciente (Caixa Final) */}
-          <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <FlaskConical className="w-4 h-4 text-primary" />
-              <span>Exames Trazidos pelo Paciente</span>
-            </div>
-            {renderField("exams_brought", "Ex: Hemograma, ferritina, TSH... Cole aqui os exames e resultados trazidos pelo paciente...", true)}
           </div>
         </div>
 

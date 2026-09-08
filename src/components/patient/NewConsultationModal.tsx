@@ -375,7 +375,8 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
     }
 
     if (saveError) {
-      toast.error("Erro ao salvar consulta.");
+      console.error("Erro ao salvar consulta:", saveError);
+      toast.error(`Erro ao salvar consulta: ${saveError.message}`);
     } else {
       toast.success(consultation ? "Consulta atualizada com sucesso!" : "Consulta registrada com sucesso!");
       onSuccess();
@@ -514,13 +515,13 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
 
             {viewMode === "full" && (
               <div className="space-y-5">
-                {/* Queixa Principal */}
+                {/* Histórico da Doença Atual */}
                 <div>
-                  <Label className="font-body text-sm font-semibold">Queixa Principal</Label>
+                  <Label className="font-body text-sm font-semibold">Histórico da Doença Atual</Label>
                   <Textarea
                     value={form.chief_complaint}
                     onChange={(e) => setForm({ ...form, chief_complaint: e.target.value })}
-                    placeholder="Descreva a queixa do paciente nesta consulta..."
+                    placeholder="Descreva a queixa e o histórico da doença atual do paciente nesta consulta..."
                     className="mt-1 min-h-[70px]"
                   />
                 </div>

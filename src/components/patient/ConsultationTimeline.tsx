@@ -40,7 +40,10 @@ const renderExamContent = (text: string) => {
         }
         if (line.endsWith(":") || line === line.toUpperCase()) {
           return (
-            <p key={i} className="text-xs font-bold text-primary uppercase tracking-wide mt-3 first:mt-0">
+            <p
+              key={i}
+              className="text-sm font-bold text-primary uppercase tracking-wide mt-6 pt-3 border-t border-border/60 first:mt-0 first:pt-0 first:border-t-0"
+            >
               {line}
             </p>
           );
@@ -250,7 +253,7 @@ const ConsultationTimeline = ({ consultations, patientId, onNewConsultation, onE
 
                 {c.chief_complaint && (
                   <div>
-                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Queixa</span>
+                    <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide block">Histórico da Doença Atual</span>
                     {renderFieldContent(c.chief_complaint)}
                   </div>
                 )}
