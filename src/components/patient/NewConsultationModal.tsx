@@ -276,6 +276,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
       if (exam.macro_midline_widening) macroLines.push(`• Alargamento de linha média: ${exam.macro_midline_widening}`);
       if (exam.macro_vertex_rarefaction) macroLines.push(`• Rarefação em vértex: ${exam.macro_vertex_rarefaction}`);
       if (exam.macro_prominent_recession) macroLines.push(`• Entradas proeminentes: ${exam.macro_prominent_recession}`);
+      if (exam.pull_test) macroLines.push(`• PULL TEST: ${exam.pull_test}`);
 
       const examLines: string[] = [];
       if (macroLines.length > 0) {
@@ -298,7 +299,6 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
       if (exam.perifollicular_sign) examLines.push(`• Sinal perifolicular: ${exam.perifollicular_sign}`);
       if (exam.follicular_sign) examLines.push(`• Sinal folicular: ${exam.follicular_sign}`);
       if (exam.vessels) examLines.push(`• Vasos: ${exam.vessels}`);
-      if (exam.pull_test) examLines.push(`• PULL TEST: ${exam.pull_test}`);
 
       let fullPhysicalExam = "";
       if (examLines.length > 0) {
@@ -540,6 +540,35 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
                     {renderTrichoscopyInput("macro_vertex_rarefaction", "Rarefação em vértex?", "Sim / Não")}
                     {renderTrichoscopyInput("macro_prominent_recession", "Entradas proeminentes?", "Sim / Não")}
                   </div>
+
+                  {/* PULL TEST em destaque */}
+                  <div className="bg-primary/5 p-3 rounded-lg border border-primary/30 space-y-2">
+                    <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5" /> PULL TEST
+                    </span>
+                    <div className="flex flex-wrap gap-1 pb-1">
+                      {trichoscopyOptions.pull_test.map((opt) => (
+                        <button
+                          type="button"
+                          key={opt}
+                          onClick={() => setExamField("pull_test", opt)}
+                          className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors ${
+                            exam.pull_test === opt
+                              ? "bg-primary text-primary-foreground border-primary font-medium"
+                              : "border-border/70 bg-muted/40 hover:bg-primary/10 hover:text-primary hover:border-primary/40 text-muted-foreground"
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    <Input
+                      value={exam.pull_test}
+                      onChange={(e) => setExamField("pull_test", e.target.value)}
+                      placeholder="Ex: Negativo / Positivo difuso (3 fios telógenos)..."
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
                 </div>
 
                 {/* Exame Físico Tricológico Estruturado */}
@@ -579,35 +608,6 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
                       {renderTrichoscopyInput("perifollicular_sign", "Sinal perifolicular (couro cabeludo):", "Ex: Ausente, eritema, colarete...")}
                       {renderTrichoscopyInput("follicular_sign", "Sinal folicular:", "Ex: Pontos amarelos, pontos pretos...")}
                       {renderTrichoscopyInput("vessels", "Vasos:", "Ex: Normais em alça, arboriformes...")}
-
-                      {/* PULL TEST em destaque */}
-                      <div className="sm:col-span-2 bg-primary/5 p-3 rounded-lg border border-primary/30 space-y-2">
-                        <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
-                          <Activity className="w-3.5 h-3.5" /> PULL TEST
-                        </span>
-                        <div className="flex flex-wrap gap-1 pb-1">
-                          {trichoscopyOptions.pull_test.map((opt) => (
-                            <button
-                              type="button"
-                              key={opt}
-                              onClick={() => setExamField("pull_test", opt)}
-                              className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors ${
-                                exam.pull_test === opt
-                                  ? "bg-primary text-primary-foreground border-primary font-medium"
-                                  : "border-border/70 bg-muted/40 hover:bg-primary/10 hover:text-primary hover:border-primary/40 text-muted-foreground"
-                              }`}
-                            >
-                              {opt}
-                            </button>
-                          ))}
-                        </div>
-                        <Input
-                          value={exam.pull_test}
-                          onChange={(e) => setExamField("pull_test", e.target.value)}
-                          placeholder="Ex: Negativo / Positivo difuso (3 fios telógenos)..."
-                          className="h-8 text-xs bg-background"
-                        />
-                      </div>
                     </div>
                   )}
 
