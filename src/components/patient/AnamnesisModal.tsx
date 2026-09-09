@@ -27,6 +27,7 @@ export interface AnamnesisData {
   alcohol: string;
   physical_activity: string;
   physical_activity_type: string;
+  diet: string;
   bowel_function: string;
   water_intake: string;
   supplements: string;
@@ -63,6 +64,7 @@ export const emptyAnamnesis: AnamnesisData = {
   alcohol: "",
   physical_activity: "",
   physical_activity_type: "",
+  diet: "",
   bowel_function: "",
   water_intake: "",
   supplements: "",
@@ -99,6 +101,7 @@ export const anamnesisLabels: Record<keyof AnamnesisData, string> = {
   alcohol: "Etilismo",
   physical_activity: "Atividade física (Frequência)",
   physical_activity_type: "Tipo de atividade física praticada",
+  diet: "Alimentação / Dieta",
   bowel_function: "Funcionamento do intestino (Frequência evacuatória)",
   water_intake: "Ingestão de água",
   supplements: "Suplementos alimentares",
@@ -132,8 +135,8 @@ const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
   has_children: ["Sim", "Não"],
   wants_children_next_year: ["Sim", "Não"],
   continuous_medications: ["Nega uso contínuo", "Anticoncepcional", "Anti-hipertensivo", "Tireoide (Levotiroxina)"],
-  allergies: ["Nega alergias conhecidas", "Alergia a Dipirona", "Alergia a Sulfas", "Alergia alimentar"],
-  comorbidities: ["Nenhuma comorbidade", "Hipotireoidismo", "Diabetes", "Hipertensão (HAS)", "SOP (Ovários Policísticos)", "Anemia / Ferritina baixa", "Dermatite seborreica", "Psoríase", "Doença autoimune"],
+  allergies: ["Nega alergias conhecidas", "Alergia a Dipirona", "Alergia a Sulfas", "Alergia alimentar", "Intolerância à lactose", "Intolerância a glúten"],
+  comorbidities: ["Nenhuma comorbidade", "Hipotireoidismo", "Diabetes", "Hipertensão (HAS)", "SOP (Ovários Policísticos)", "Anemia / Ferritina baixa", "Dermatite seborreica", "Psoríase", "Doença autoimune", "Dislipidemia", "Obesidade"],
   anabolic_steroids: ["Não usa / Nunca usou", "Uso prévio (passado)", "Uso atual"],
   topical_testosterone: ["Não faz reposição", "Reposição tópica atual", "Reposição tópica prévia"],
   previous_surgeries: ["Nenhuma cirurgia prévia", "Cirurgia bariátrica", "Cirurgia capilar prévia"],
@@ -142,12 +145,13 @@ const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
   alcohol: ["Não consome", "Socialmente (ocasional)", "Frequente"],
   physical_activity: ["Sedentário", "1 a 2x na semana", "3 a 5x na semana", "Diário / Atleta"],
   physical_activity_type: ["Musculação", "Corrida / Caminhada", "Pilates / Yoga", "Crossfit", "Natação", "Nenhuma"],
+  diet: ["Baixo em gordura", "Baixo em carboidrato", "Alta proteína", "Hipossódica", "Diabético", "Sem glúten", "Sem lactose", "Saudável"],
   bowel_function: ["Diário (1 a 2x ao dia)", "Dias alternados", "2 a 3x por semana (constipado)", "Mais de 3 dias sem evacuar", "Fezes ressecadas / difícil evacuação"],
   water_intake: ["Menos de 1L / dia", "1 a 2L / dia", "2 a 3L / dia", "Mais de 3L / dia"],
-  supplements: ["Nenhum suplemento", "Whey protein / Creatina", "Polivitamínico / Vitamina D", "Biotina / Ferro"],
+  supplements: ["Nenhum suplemento", "Whey protein", "Creatina", "Polivitamínico / Vitamina D", "Biotina / Ferro"],
   sleep_quality: ["Bom (7-8h reparador)", "Ruim / Insônia", "Fragmentado (acorda cansado)"],
   sleep_medication: ["Não usa medicação", "Zolpidem", "Melatonina", "Clonazepam (Rivotril)", "Trazodona", "Fitoterápico / Passiflora"],
-  family_history: ["Sem histórico relevante", "Calvície paterna", "Calvície materna", "Calvície bilateral (pai e mãe)", "Hipotireoidismo familiar"],
+  family_history: ["Sem histórico relevante", "Calvície paterna", "Calvície materna", "Calvície bilateral (pai e mãe)", "Hipotireoidismo familiar", "Nega histórico familiar de câncer"],
   // HairCare quick options
   haircare_washing_frequency: ["Diária", "Dias alternados", "2 a 3x por semana", "1x por semana"],
   haircare_water_temperature: ["Fria", "Morna", "Quente"],
@@ -391,6 +395,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
               {renderField("alcohol", "Ex: Social fim de semana / Não consome")}
               {renderField("physical_activity", "Ex: 3 a 5x na semana")}
               {renderField("physical_activity_type", "Ex: Musculação intensa, corrida 5km, pilates...")}
+              {renderField("diet", "Ex: Dieta saudável, baixo carboidrato, restrição de glúten...")}
               {renderField("water_intake", "Ex: 2 a 2.5 litros ao dia")}
               {renderField("bowel_function", "Ex: Diário 1x ao dia / Constipado (a cada 3 dias)...")}
               {renderField("supplements", "Ex: Creatina, Whey, Biotina...", true)}

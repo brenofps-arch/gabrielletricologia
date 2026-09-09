@@ -1,10 +1,16 @@
-import { Calendar, Users, ClipboardList, CalendarClock } from "lucide-react";
+import { Calendar, Users, ClipboardList, CalendarClock, AlarmClock, Syringe } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, formatDistanceToNow, startOfMonth, endOfMonth, addDays } from "date-fns";
+import { format, formatDistanceToNow, startOfMonth, endOfMonth, addDays, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+// Janela de alerta: sessoes de procedimento sao mensais, entao avisamos a
+// partir de ~20 dias (proximo do prazo) ate 60 dias (ainda relevante marcar).
+const PROCEDURE_ALERT_MIN_DAYS = 20;
+const PROCEDURE_ALERT_MAX_DAYS = 60;
+const PROCEDURE_ALERT_OVERDUE_DAYS = 31;
 
 const statusLabels: Record<string, { label: string; className: string }> = {
   confirmed: { label: "Confirmado", className: "bg-mint/30 text-secondary-foreground" },
@@ -78,6 +84,41 @@ const Index = () => {
     },
   });
 
+  const { data: procedureAlerts = [] } = useQuery({
+    queryKey: ["dashboard-procedure-alerts", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("consultations")
+        .select("patient_id, consultation_date, procedure_type, patients(name)")
+        .eq("visit_type", "procedimento")
+        .order("consultation_date", { ascending: false });
+      if (error) throw error;
+
+      // Mantem apenas a sessao de procedimento mais recente de cada paciente
+      const latestByPatient = new Map<string, (typeof data)[number]>();
+      for (const c of data ?? []) {
+        if (!latestByPatient.has(c.patient_id)) latestByPatient.set(c.patient_id, c);
+      }
+
+      const now = new Date();
+      return Array.from(latestByPatient.values())
+        .map((c) => {
+          const lastDate = new Date(c.consultation_date);
+          const daysSince = differenceInCalendarDays(now, lastDate);
+          return {
+            patientId: c.patient_id,
+            patientName: (c as any).patients?.name ?? "Paciente",
+            procedureType: c.procedure_type as string | null,
+            lastDate,
+            daysSince,
+          };
+        })
+        .filter((p) => p.daysSince >= PROCEDURE_ALERT_MIN_DAYS && p.daysSince <= PROCEDURE_ALERT_MAX_DAYS)
+        .sort((a, b) => b.daysSince - a.daysSince);
+    },
+  });
+
   const { data: upcoming = [] } = useQuery({
     queryKey: ["dashboard-upcoming", userId],
     enabled: !!userId,
@@ -145,6 +186,47 @@ const Index = () => {
         <h1 className="text-3xl font-heading font-semibold text-foreground">Bom dia, {displayName}</h1>
         <p className="text-muted-foreground font-body mt-1">Aqui está o resumo do seu dia.</p>
       </div>
+
+      {procedureAlerts.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <AlarmClock className="w-5 h-5 text-amber-700" />
+            <h2 className="text-base font-heading font-semibold text-amber-800">
+              Pacientes próximas de completar 1 mês da última sessão
+            </h2>
+          </div>
+          <div className="space-y-2">
+            {procedureAlerts.map((p) => {
+              const overdue = p.daysSince >= PROCEDURE_ALERT_OVERDUE_DAYS;
+              return (
+                <button
+                  key={p.patientId}
+                  onClick={() => navigate(`/pacientes/${p.patientId}`)}
+                  className="w-full flex items-center justify-between p-3 rounded-lg bg-white/70 border border-amber-200/70 hover:bg-white transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <Syringe className="w-4 h-4 text-amber-700 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{p.patientName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Última sessão{p.procedureType ? ` (${p.procedureType})` : ""} em{" "}
+                        {format(p.lastDate, "dd/MM/yyyy", { locale: ptBR })}
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`text-xs font-medium px-3 py-1 rounded-full shrink-0 ${
+                      overdue ? "bg-destructive/10 text-destructive" : "bg-amber-200/60 text-amber-800"
+                    }`}
+                  >
+                    {overdue ? `Atrasado há ${p.daysSince - 30} dia(s)` : `Faltam ${30 - p.daysSince} dia(s)`}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {statCards.map((stat) => (

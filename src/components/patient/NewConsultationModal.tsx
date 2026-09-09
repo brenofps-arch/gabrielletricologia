@@ -84,7 +84,7 @@ const trichoscopyOptions: Record<keyof TrichoscopyExam, string[]> = {
   anisotrichosis: ["Sim (presente)", "Não (ausente)"],
   vellus: ["Sim (presente)", "Não (ausente)"],
   hair_morphology: ["Sem alterações", "Tricoptilose (pontas duplas)", "Tricorrexe nodosa", "Fios em ponto de exclamação", "Fios quebradiços", "Cabelos em tufo"],
-  perifollicular_sign: ["Ausente / Normal", "Eritema perifolicular", "Descamação peripilar (colarete)", "Hiperqueratose folicular", "Halo branco peripilar"],
+  perifollicular_sign: ["Ausente / Normal", "Eritema perifolicular", "Descamação peripilar (colarete)", "Descamação solta", "Hiperqueratose folicular", "Halo branco peripilar"],
   follicular_sign: ["Sem alterações", "Pontos amarelos (Yellow dots)", "Pontos pretos (Black dots)", "Pontos brancos", "Pontos vermelhos", "Halo marrom"],
   vessels: ["Padrão normal (alças)", "Arboriformes", "Ectásicos / Tortuosos", "Pontilhados", "Ausentes"],
   pull_test: ["Negativo (normal)", "Positivo difuso", "Positivo em vértex", "Positivo frontal", "Positivo parietal", "Fios anágenos", "Fios telógenos"],
