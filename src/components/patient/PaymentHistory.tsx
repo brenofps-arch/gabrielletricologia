@@ -27,19 +27,24 @@ const paymentMethods = [
   "Transferência bancária", "Outro",
 ];
 
+const CREDIT_CARD_METHOD = "Cartão de crédito";
+
 const PaymentHistory = ({ patientId }: Props) => {
   const queryClient = useQueryClient();
   const [showNew, setShowNew] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [form, setForm] = useState({
+  const emptyForm = {
     amount: "",
     payment_method: "",
     payment_date: new Date().toISOString().split("T")[0],
     description: "",
     notes: "",
     status: "paid",
-  });
+    credit_installment_type: "avista",
+    installments: "",
+  };
+  const [form, setForm] = useState(emptyForm);
 
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ["payments", patientId],
@@ -57,9 +62,16 @@ const PaymentHistory = ({ patientId }: Props) => {
   const totalPaid = payments.reduce((sum: number, p: any) => sum + (p.status === "paid" ? Number(p.amount) : 0), 0);
   const totalPending = payments.reduce((sum: number, p: any) => sum + (p.status === "pending" ? Number(p.amount) : 0), 0);
 
+  const isCreditCard = form.payment_method === CREDIT_CARD_METHOD;
+  const isDividido = isCreditCard && form.credit_installment_type === "dividido";
+
   const handleSave = async () => {
     if (!form.amount || isNaN(Number(form.amount))) { toast.error("Informe o valor."); return; }
     if (!form.payment_method) { toast.error("Informe a forma de pagamento."); return; }
+    if (isDividido && (!form.installments || Number(form.installments) < 2)) {
+      toast.error("Informe a quantidade de parcelas.");
+      return;
+    }
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("payments").insert({
@@ -71,13 +83,14 @@ const PaymentHistory = ({ patientId }: Props) => {
       status: form.status,
       description: form.description || null,
       notes: form.notes || null,
+      installments: isDividido ? Number(form.installments) : null,
     });
     if (error) toast.error("Erro ao registrar pagamento.");
     else {
       toast.success("Pagamento registrado!");
       queryClient.invalidateQueries({ queryKey: ["payments", patientId] });
       setShowNew(false);
-      setForm({ amount: "", payment_method: "", payment_date: new Date().toISOString().split("T")[0], description: "", notes: "", status: "paid" });
+      setForm(emptyForm);
     }
     setSaving(false);
   };
@@ -146,6 +159,7 @@ const PaymentHistory = ({ patientId }: Props) => {
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
                       {p.payment_method}
+                      {p.payment_method === CREDIT_CARD_METHOD && (p.installments > 1 ? ` · ${p.installments}x` : " · à vista")}
                     </span>
                     {p.status === "paid" ? (
                       <span className="text-[10px] flex items-center gap-1 text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
@@ -197,13 +211,30 @@ const PaymentHistory = ({ patientId }: Props) => {
             </div>
             <div>
               <Label>Forma de pagamento *</Label>
-              <Select value={form.payment_method} onValueChange={(v) => setForm({ ...form, payment_method: v })}>
+              <Select value={form.payment_method} onValueChange={(v) => setForm({ ...form, payment_method: v, credit_installment_type: "avista", installments: "" })}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                 <SelectContent>
                   {paymentMethods.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+            {isCreditCard && (
+              <div>
+                <Label>Crédito à vista ou dividido? *</Label>
+                <Select value={form.credit_installment_type} onValueChange={(v) => setForm({ ...form, credit_installment_type: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="avista">À vista</SelectItem>
+                    <SelectItem value="dividido">Dividido</SelectItem>
+                  </SelectContent>
+                </Select>
+                {isDividido && (
+                  <Input className="mt-2" type="number" min="2" step="1" placeholder="Quantidade de parcelas"
+                    value={form.installments}
+                    onChange={(e) => setForm({ ...form, installments: e.target.value })} />
+                )}
+              </div>
+            )}
             <div>
               <Label>Data do pagamento / vencimento *</Label>
               <Input className="mt-1" type="date"
