@@ -36,6 +36,7 @@ const PatientDetail = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [showAnamnesis, setShowAnamnesis] = useState(false);
   const [openConsultationAfterAnamnesis, setOpenConsultationAfterAnamnesis] = useState(false);
+  const [pendingChiefComplaint, setPendingChiefComplaint] = useState("");
   const [anamnesisCollapsed, setAnamnesisCollapsed] = useState(true);
 
 
@@ -364,12 +365,13 @@ const PatientDetail = () => {
         open={showConsultation}
         onOpenChange={(o) => {
           setShowConsultation(o);
-          if (!o) setEditingConsultation(null);
+          if (!o) { setEditingConsultation(null); setPendingChiefComplaint(""); }
         }}
         patientId={patient.id}
         consultation={editingConsultation}
         previousConsultations={consultations}
         anamnesis={hasCompletedAnamnesis ? anamnesis : null}
+        initialChiefComplaint={pendingChiefComplaint}
         onSuccess={refresh}
       />
       <PrescriptionModal open={showPrescription} onOpenChange={setShowPrescription} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
@@ -381,9 +383,11 @@ const PatientDetail = () => {
         patientId={patient.id}
         initialData={anamnesis}
         initialDate={patient.anamnesis_completed_at}
-        onSaved={() => {
+        promptChiefComplaint={openConsultationAfterAnamnesis}
+        onSaved={(chiefComplaint) => {
           if (openConsultationAfterAnamnesis) {
             setOpenConsultationAfterAnamnesis(false);
+            setPendingChiefComplaint(chiefComplaint || "");
             setShowConsultation(true);
           }
         }}

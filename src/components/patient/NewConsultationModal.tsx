@@ -24,6 +24,7 @@ interface Props {
   consultation?: Tables<"consultations"> | null;
   previousConsultations?: Tables<"consultations">[];
   anamnesis?: AnamnesisData | null;
+  initialChiefComplaint?: string;
   onSuccess: () => void;
 }
 
@@ -97,7 +98,7 @@ const getVisitMode = (c: Tables<"consultations"> | null | undefined): ViewMode =
   return "full";
 };
 
-const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, previousConsultations = [], anamnesis, onSuccess }: Props) => {
+const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, previousConsultations = [], anamnesis, initialChiefComplaint, onSuccess }: Props) => {
   const [loading, setLoading] = useState(false);
   const [showAnamnesisSummary, setShowAnamnesisSummary] = useState(false);
   const [showTrichoscopyFields, setShowTrichoscopyFields] = useState(true);
@@ -189,7 +190,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
       } else {
         setForm({
           consultation_date: new Date().toISOString().slice(0, 10),
-          chief_complaint: "",
+          chief_complaint: initialChiefComplaint || "",
           physical_exam_notes: "",
           diagnosis: "",
           treatment_plan: "",
@@ -204,7 +205,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
         setViewMode(previousConsultations.length === 0 ? "full" : "chooser");
       }
     }
-  }, [open, consultation]);
+  }, [open, consultation, initialChiefComplaint]);
 
   const setExamField = (k: keyof TrichoscopyExam, val: string) => {
     setExam((prev) => ({ ...prev, [k]: val }));

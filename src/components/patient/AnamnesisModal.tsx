@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pill, Activity, HeartPulse, Users, Calendar, Scissors, Sparkles, User } from "lucide-react";
+import { Pill, Activity, HeartPulse, Users, Calendar, Scissors, Sparkles, User, FileText } from "lucide-react";
 
 export interface AnamnesisData {
   // Dados Pessoais e Sociais
@@ -127,7 +127,11 @@ interface Props {
   patientId: string;
   initialData?: Partial<AnamnesisData> | null;
   initialDate?: string | null;
-  onSaved?: () => void;
+  // Quando true, exibe o campo de Histórico da Doença Atual — usado no
+  // fluxo de primeira consulta, onde o valor digitado aqui e repassado
+  // para a consulta que sera aberta em seguida (nao e salvo na anamnese).
+  promptChiefComplaint?: boolean;
+  onSaved?: (chiefComplaint?: string) => void;
 }
 
 const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
@@ -164,10 +168,11 @@ const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
   haircare_previous_treatments: ["Nenhum tratamento prévio", "Minoxidil tópico", "Minoxidil oral", "MMP capilar", "Intradermoterapia", "LEDterapia", "Transplante capilar"],
 };
 
-const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDate, onSaved }: Props) => {
+const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDate, promptChiefComplaint, onSaved }: Props) => {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<AnamnesisData>(emptyAnamnesis);
+  const [chiefComplaint, setChiefComplaint] = useState("");
   const [customDate, setCustomDate] = useState<string>(() => {
     if (initialDate) return new Date(initialDate).toISOString().slice(0, 10);
     return new Date().toISOString().slice(0, 10);
@@ -176,6 +181,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
   useEffect(() => {
     if (open) {
       setForm({ ...emptyAnamnesis, ...(initialData || {}) });
+      setChiefComplaint("");
       if (initialDate) {
         setCustomDate(new Date(initialDate).toISOString().slice(0, 10));
       } else {
@@ -230,7 +236,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
     toast.success("Anamnese do paciente salva com sucesso!");
     queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
     onOpenChange(false);
-    onSaved?.();
+    onSaved?.(promptChiefComplaint ? chiefComplaint.trim() : undefined);
   };
 
   const renderField = (k: keyof AnamnesisData, placeholder: string, multiline = false) => (
@@ -311,6 +317,24 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
         </div>
 
         <div className="space-y-6 py-2">
+          {promptChiefComplaint && (
+            <div className="bg-primary/5 border border-primary/30 rounded-xl p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                <FileText className="w-4 h-4" />
+                <span>Histórico da Doença Atual</span>
+              </div>
+              <Textarea
+                value={chiefComplaint}
+                onChange={(e) => setChiefComplaint(e.target.value)}
+                placeholder="Descreva a queixa e o histórico da doença atual do paciente..."
+                className="text-sm min-h-[68px] bg-background"
+              />
+              <p className="text-xs text-muted-foreground">
+                Este texto será usado na primeira consulta, que abre logo após salvar a anamnese.
+              </p>
+            </div>
+          )}
+
           {/* Seção 0: Dados Pessoais e Sociais */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
