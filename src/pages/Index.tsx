@@ -3,8 +3,16 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, formatDistanceToNow, startOfMonth, endOfMonth, addDays, differenceInCalendarDays } from "date-fns";
+import { format, formatDistanceToNow, startOfMonth, endOfMonth, addDays, differenceInCalendarDays, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+interface GEvent {
+  id: string;
+  summary?: string;
+  start: { dateTime?: string; date?: string };
+  end: { dateTime?: string; date?: string };
+  description?: string;
+}
 
 // Janela de alerta: sessoes de procedimento sao mensais, entao avisamos a
 // partir de ~20 dias (proximo do prazo) ate 60 dias (ainda relevante marcar).
@@ -119,22 +127,22 @@ const Index = () => {
     },
   });
 
-  const { data: upcoming = [] } = useQuery({
-    queryKey: ["dashboard-upcoming", userId],
+  const { data: upcomingResult } = useQuery({
+    queryKey: ["dashboard-upcoming-gcal", userId],
     enabled: !!userId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("id, patient_name, notes, appointment_date, appointment_time, status, patients(name)")
-        .gte("appointment_date", today)
-        .neq("status", "cancelled")
-        .order("appointment_date", { ascending: true })
-        .order("appointment_time", { ascending: true })
-        .limit(6);
-      if (error) throw error;
-      return data ?? [];
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return { connected: false, events: [] as GEvent[] };
+      const timeMin = new Date().toISOString();
+      const timeMax = addDays(new Date(), 7).toISOString();
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const json = await res.json();
+      return { connected: !!json.connected, events: (json.events ?? []) as GEvent[] };
     },
   });
+  const upcoming = upcomingResult?.events ?? [];
+  const calendarConnected = upcomingResult?.connected ?? true;
 
   const { data: activities = [] } = useQuery({
     queryKey: ["dashboard-activity", userId],
@@ -253,34 +261,43 @@ const Index = () => {
               Ver agenda completa
             </button>
           </div>
-          {upcoming.length === 0 ? (
+          {!calendarConnected ? (
             <div className="py-10 text-center">
               <Calendar className="w-10 h-10 mx-auto text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground">Nenhuma consulta agendada.</p>
-              <p className="text-xs text-muted-foreground mt-1">Novas consultas aparecerão aqui automaticamente.</p>
+              <p className="text-sm text-muted-foreground">Google Calendar não conectado.</p>
+              <button onClick={() => navigate("/agenda")} className="text-xs text-primary hover:underline mt-1">
+                Conecte na Agenda para ver suas próximas consultas aqui.
+              </button>
+            </div>
+          ) : upcoming.length === 0 ? (
+            <div className="py-10 text-center">
+              <Calendar className="w-10 h-10 mx-auto text-muted-foreground/30 mb-3" />
+              <p className="text-sm text-muted-foreground">Nenhuma consulta agendada para os próximos 7 dias.</p>
+              <p className="text-xs text-muted-foreground mt-1">Novos eventos da sua agenda aparecerão aqui automaticamente.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {upcoming.map((apt: any) => {
-                const isToday = apt.appointment_date === today;
-                const patientName = apt.patients?.name || apt.patient_name;
+              {upcoming.slice(0, 6).map((e) => {
+                const startRaw = e.start.dateTime || e.start.date;
+                if (!startRaw) return null;
+                const start = new Date(startRaw);
+                const isToday = isSameDay(start, new Date());
+                const timeLabel = e.start.dateTime ? format(start, "HH:mm") : "Dia todo";
                 return (
                   <div
-                    key={apt.id}
+                    key={e.id}
                     className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-16 shrink-0">
-                        <p className="text-sm font-semibold text-primary font-body">
-                          {String(apt.appointment_time).slice(0, 5)}
-                        </p>
+                        <p className="text-sm font-semibold text-primary font-body">{timeLabel}</p>
                         <p className="text-[10px] text-muted-foreground">
-                          {isToday ? "Hoje" : format(new Date(`${apt.appointment_date}T12:00:00`), "dd/MM", { locale: ptBR })}
+                          {isToday ? "Hoje" : format(start, "dd/MM", { locale: ptBR })}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">{patientName}</p>
-                        {apt.notes && <p className="text-xs text-muted-foreground">{apt.notes}</p>}
+                        <p className="text-sm font-medium text-foreground">{e.summary || "Sem título"}</p>
+                        {e.description && <p className="text-xs text-muted-foreground line-clamp-1">{e.description}</p>}
                       </div>
                     </div>
                     <span className="text-xs font-medium px-3 py-1 rounded-full bg-mint/30 text-secondary-foreground">
