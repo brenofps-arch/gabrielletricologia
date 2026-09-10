@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
-import { MessageCircle, Webhook, Send, Settings2, CheckCircle2, Phone, Clock, User, Bot, ArrowRight, RefreshCw, Copy, ExternalLink } from "lucide-react";
+import { MessageCircle, Webhook, Settings2, CheckCircle2, Phone, Clock, User, Bot, ArrowRight, RefreshCw, Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,9 +40,7 @@ const Mensagens = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [manualMessage, setManualMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
   const { toast } = useToast();
 
   // Webhook URL for display
@@ -101,32 +98,6 @@ const Mensagens = () => {
   const selectConversation = (conv: Conversation) => {
     setSelectedConversation(conv);
     fetchMessages(conv.id);
-  };
-
-  const sendManualMessage = async () => {
-    if (!manualMessage.trim() || !selectedConversation) return;
-    setSending(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke("whatsapp-send", {
-        body: {
-          phone: selectedConversation.phone_number,
-          message: manualMessage,
-          conversation_id: selectedConversation.id,
-        },
-      });
-
-      if (error) throw error;
-
-      toast({ title: "Mensagem enviada!", description: "A mensagem foi enviada via WhatsApp." });
-      setManualMessage("");
-      fetchMessages(selectedConversation.id);
-    } catch (err) {
-      console.error("Send error:", err);
-      toast({ title: "Erro ao enviar", description: "Não foi possível enviar a mensagem.", variant: "destructive" });
-    } finally {
-      setSending(false);
-    }
   };
 
   const copyWebhookUrl = () => {
@@ -254,27 +225,10 @@ const Mensagens = () => {
                     )}
                   </div>
 
-                  <div className="p-3 border-t border-border flex gap-2">
-                    <Textarea
-                      placeholder="Enviar mensagem manual..."
-                      className="min-h-[40px] max-h-[80px] resize-none text-sm"
-                      value={manualMessage}
-                      onChange={(e) => setManualMessage(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          sendManualMessage();
-                        }
-                      }}
-                    />
-                    <Button
-                      size="icon"
-                      className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
-                      onClick={sendManualMessage}
-                      disabled={sending || !manualMessage.trim()}
-                    >
-                      <Send className="w-4 h-4" />
-                    </Button>
+                  <div className="p-3 border-t border-border">
+                    <p className="text-xs text-muted-foreground text-center">
+                      Envio manual de mensagens desativado temporariamente.
+                    </p>
                   </div>
                 </>
               ) : (
