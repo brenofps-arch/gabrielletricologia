@@ -324,44 +324,52 @@ const Agenda = () => {
     });
   };
 
-  const eventForHour = (hour: string) => {
-    return events.find((e) => {
-      const dt = e.start.dateTime || e.start.date;
-      if (!dt) return false;
-      const d = new Date(dt);
-      return sameDay(d, currentDate) && `${d.getHours().toString().padStart(2, "0")}:00` === hour;
-    });
-  };
+  // Altura de cada linha de hora na grade (deve bater com h-[60px] abaixo)
+  // e a hora em que a grade começa — usados para posicionar os cards de
+  // evento de forma absoluta, proporcional ao horário real (em vez de só
+  // encaixar cada evento numa única linha de hora cheia).
+  const ROW_HEIGHT = 60;
+  const GRID_START_HOUR = 7;
+  const GRID_TOTAL_MIN = hours.length * 60;
 
-  const eventForDayHour = (day: Date, hour: string) => {
-    return events.find((e) => {
-      const dt = e.start.dateTime || e.start.date;
-      if (!dt) return false;
-      const d = new Date(dt);
-      return sameDay(d, day) && `${d.getHours().toString().padStart(2, "0")}:00` === hour;
-    });
+  const eventRange = (e: GEvent) => {
+    const startRaw = e.start.dateTime || e.start.date;
+    if (!startRaw) return null;
+    const start = new Date(startRaw);
+    const endRaw = e.end.dateTime || e.end.date;
+    const end = endRaw ? new Date(endRaw) : new Date(start.getTime() + 60 * 60000);
+    return { start, end };
   };
 
   // Um evento pode começar no meio de uma hora (ex: 15:30) e continuar
   // ocupando a hora seguinte (16:00) mesmo sem começar exatamente nela —
-  // por isso, além de eventForHour/eventForDayHour (que só acham o evento
-  // que COMEÇA no slot), este helper detecta quando o slot está coberto
-  // por um evento que começou numa hora anterior.
-  const eventCoveringHour = (day: Date, hour: string) => {
+  // por isso, em vez de só achar o evento que começa exatamente no slot,
+  // este helper diz se o slot está livre em toda a sua extensão.
+  const isHourFree = (day: Date, hour: string) => {
     const [h] = hour.split(":").map(Number);
     const slotStart = h * 60;
     const slotEnd = slotStart + 60;
-    return events.find((e) => {
-      const startRaw = e.start.dateTime || e.start.date;
-      if (!startRaw) return false;
-      const start = new Date(startRaw);
-      if (!sameDay(start, day)) return false;
-      const endRaw = e.end.dateTime || e.end.date;
-      const end = endRaw ? new Date(endRaw) : new Date(start.getTime() + 60 * 60000);
-      const startMin = start.getHours() * 60 + start.getMinutes();
-      const endMin = end.getHours() * 60 + end.getMinutes();
+    return !events.some((e) => {
+      const range = eventRange(e);
+      if (!range || !sameDay(range.start, day)) return false;
+      const startMin = range.start.getHours() * 60 + range.start.getMinutes();
+      const endMin = range.end.getHours() * 60 + range.end.getMinutes();
       return startMin < slotEnd && endMin > slotStart;
     });
+  };
+
+  // Posição/altura (em px) do card do evento dentro da grade, proporcional
+  // ao horário real de início/fim — assim um evento das 15:30 às 17:00
+  // aparece visualmente esticado por uma hora e meia, não preso a um slot.
+  const eventPixelStyle = (e: GEvent) => {
+    const range = eventRange(e);
+    if (!range) return { top: 0, height: ROW_HEIGHT };
+    const gridStartMin = GRID_START_HOUR * 60;
+    const startMin = Math.max(0, range.start.getHours() * 60 + range.start.getMinutes() - gridStartMin);
+    const endMin = Math.min(GRID_TOTAL_MIN, range.end.getHours() * 60 + range.end.getMinutes() - gridStartMin);
+    const top = (startMin / 60) * ROW_HEIGHT;
+    const height = Math.max(24, ((endMin - startMin) / 60) * ROW_HEIGHT - 2);
+    return { top, height };
   };
 
   const eventsForDay = (day: Date) =>
@@ -476,58 +484,65 @@ const Agenda = () => {
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : view === "day" ? (
-            <div className="space-y-1">
-              {hours.map((hour) => {
-                const apt = eventForHour(hour);
-                const continuation = !apt ? eventCoveringHour(currentDate, hour) : null;
-                return (
-                  <div key={hour} className="flex gap-4 min-h-[60px]">
-                    <span className="text-xs text-muted-foreground w-14 pt-2 font-body font-medium">{hour}</span>
-                    <div className="flex-1 border-t border-border/50 pt-2">
-                      {apt ? (
-                        <div className="bg-primary/10 border-l-3 border-primary rounded-lg p-3 group flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(apt)}>
-                            <p className="text-sm font-medium text-foreground">{apt.summary || "Sem título"}</p>
-                            {apt.description && (
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{apt.description}</p>
-                            )}
-                            <span className="flex items-center gap-1 text-xs text-primary mt-1">
-                              <Clock className="w-3 h-3" />
-                              {apt.start.dateTime && apt.end.dateTime
-                                ? `${new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} - ${new Date(apt.end.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-                                : apt.start.dateTime
-                                ? new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-                                : "Dia todo"}
-                            </span>
-                          </div>
-                          <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => openEdit(apt)} className="p-1 hover:bg-primary/20 rounded" title="Editar">
-                              <Pencil className="w-3.5 h-3.5 text-primary" />
-                            </button>
-                            <button onClick={() => setConfirmDeleteId(apt.id)} className="p-1 hover:bg-destructive/20 rounded" title="Excluir">
-                              <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : continuation ? (
-                        <div
-                          className="w-full text-left text-xs text-muted-foreground/50 italic px-2 py-1 truncate"
-                          title={`Ocupado: ${continuation.summary || "Sem título"}`}
-                        >
-                          Ocupado — {continuation.summary || "Sem título"}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => openCreate({ hour })}
-                          className="w-full text-left text-xs text-muted-foreground/40 hover:text-primary hover:bg-muted/30 rounded px-2 py-1 transition-colors"
-                        >
-                          + Adicionar
-                        </button>
-                      )}
-                    </div>
+            <div className="flex gap-4">
+              {/* Coluna de horários */}
+              <div className="w-14 shrink-0">
+                {hours.map((hour) => (
+                  <div key={hour} className="h-[60px] pt-2 text-xs text-muted-foreground font-body font-medium">
+                    {hour}
                   </div>
-                );
-              })}
+                ))}
+              </div>
+
+              {/* Grade + cards de evento posicionados proporcionalmente ao horário */}
+              <div className="flex-1 relative">
+                {hours.map((hour) => (
+                  <div key={hour} className="h-[60px] border-t border-border/50">
+                    {isHourFree(currentDate, hour) && (
+                      <button
+                        onClick={() => openCreate({ hour })}
+                        className="w-full h-full text-left text-xs text-muted-foreground/40 hover:text-primary hover:bg-muted/30 rounded px-2 pt-2 transition-colors"
+                      >
+                        + Adicionar
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {eventsForDay(currentDate).map((apt) => {
+                  const { top, height } = eventPixelStyle(apt);
+                  return (
+                    <div
+                      key={apt.id}
+                      style={{ top, height }}
+                      className="absolute left-0 right-0 bg-primary/10 border-l-3 border-primary rounded-lg px-3 py-1.5 group flex items-start justify-between gap-2 overflow-hidden"
+                    >
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(apt)}>
+                        <p className="text-sm font-medium text-foreground truncate">{apt.summary || "Sem título"}</p>
+                        {apt.description && height > 55 && (
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{apt.description}</p>
+                        )}
+                        <span className="flex items-center gap-1 text-xs text-primary mt-0.5">
+                          <Clock className="w-3 h-3" />
+                          {apt.start.dateTime && apt.end.dateTime
+                            ? `${new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} - ${new Date(apt.end.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                            : apt.start.dateTime
+                            ? new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                            : "Dia todo"}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button onClick={() => openEdit(apt)} className="p-1 hover:bg-primary/20 rounded" title="Editar">
+                          <Pencil className="w-3.5 h-3.5 text-primary" />
+                        </button>
+                        <button onClick={() => setConfirmDeleteId(apt.id)} className="p-1 hover:bg-destructive/20 rounded" title="Excluir">
+                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : view === "week" ? (
             <div className="space-y-1">
@@ -549,58 +564,64 @@ const Agenda = () => {
                 })}
               </div>
               {/* Grade horária */}
-              {hours.map((hour) => (
-                <div key={hour} className="flex gap-2 min-h-[60px]">
-                  <span className="text-xs text-muted-foreground w-14 pt-2 font-body font-medium text-right pr-2">{hour}</span>
-                  <div className="flex-1 grid grid-cols-7 gap-2">
-                    {weekDays().map((day) => {
-                      const apt = eventForDayHour(day, hour);
-                      const continuation = !apt ? eventCoveringHour(day, hour) : null;
-                      return (
-                        <div key={day.toISOString()} className="flex-1 border-t border-border/50 pt-1">
-                          {apt ? (
-                            <div className="bg-primary/10 border-l-3 border-primary rounded-lg p-2 group flex items-start justify-between gap-1 h-full">
-                              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(apt)}>
-                                <p className="text-xs font-medium text-foreground truncate">{apt.summary || "Sem título"}</p>
-                                <span className="flex items-center gap-1 text-[10px] text-primary mt-1">
-                                  <Clock className="w-3 h-3" />
-                                  {apt.start.dateTime && apt.end.dateTime
-                                    ? `${new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} - ${new Date(apt.end.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-                                    : apt.start.dateTime
-                                    ? new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-                                    : "Dia todo"}
-                                </span>
-                              </div>
-                              <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => openEdit(apt)} className="p-1 hover:bg-primary/20 rounded" title="Editar">
-                                  <Pencil className="w-3 h-3 text-primary" />
-                                </button>
-                                <button onClick={() => setConfirmDeleteId(apt.id)} className="p-1 hover:bg-destructive/20 rounded" title="Excluir">
-                                  <Trash2 className="w-3 h-3 text-destructive" />
-                                </button>
-                              </div>
-                            </div>
-                          ) : continuation ? (
-                            <div
-                              className="w-full h-full text-left text-[10px] text-muted-foreground/50 italic px-1 py-1 truncate"
-                              title={`Ocupado: ${continuation.summary || "Sem título"}`}
-                            >
-                              Ocupado
-                            </div>
-                          ) : (
+              <div className="flex gap-2">
+                <div className="w-14 shrink-0">
+                  {hours.map((hour) => (
+                    <div key={hour} className="h-[60px] pt-2 text-xs text-muted-foreground font-body font-medium text-right pr-2">
+                      {hour}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex-1 grid grid-cols-7 gap-2">
+                  {weekDays().map((day) => (
+                    <div key={day.toISOString()} className="relative">
+                      {hours.map((hour) => (
+                        <div key={hour} className="h-[60px] border-t border-border/50">
+                          {isHourFree(day, hour) && (
                             <button
                               onClick={() => { setCurrentDate(day); openCreate({ date: day, hour }); }}
-                              className="w-full h-full text-left text-[10px] text-muted-foreground/40 hover:text-primary hover:bg-muted/30 rounded px-1 py-1 transition-colors"
+                              className="w-full h-full text-left text-[10px] text-muted-foreground/40 hover:text-primary hover:bg-muted/30 rounded px-1 pt-1 transition-colors"
                             >
                               + Adicionar
                             </button>
                           )}
                         </div>
-                      );
-                    })}
-                  </div>
+                      ))}
+
+                      {eventsForDay(day).map((apt) => {
+                        const { top, height } = eventPixelStyle(apt);
+                        return (
+                          <div
+                            key={apt.id}
+                            style={{ top, height }}
+                            className="absolute left-0 right-0 bg-primary/10 border-l-3 border-primary rounded-lg px-2 py-1 group flex items-start justify-between gap-1 overflow-hidden"
+                          >
+                            <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(apt)}>
+                              <p className="text-xs font-medium text-foreground truncate">{apt.summary || "Sem título"}</p>
+                              <span className="flex items-center gap-1 text-[10px] text-primary mt-0.5">
+                                <Clock className="w-3 h-3" />
+                                {apt.start.dateTime && apt.end.dateTime
+                                  ? `${new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} - ${new Date(apt.end.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                                  : apt.start.dateTime
+                                  ? new Date(apt.start.dateTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                                  : "Dia todo"}
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                              <button onClick={() => openEdit(apt)} className="p-1 hover:bg-primary/20 rounded" title="Editar">
+                                <Pencil className="w-3 h-3 text-primary" />
+                              </button>
+                              <button onClick={() => setConfirmDeleteId(apt.id)} className="p-1 hover:bg-destructive/20 rounded" title="Excluir">
+                                <Trash2 className="w-3 h-3 text-destructive" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           ) : (
             <div>
