@@ -342,6 +342,28 @@ const Agenda = () => {
     });
   };
 
+  // Um evento pode começar no meio de uma hora (ex: 15:30) e continuar
+  // ocupando a hora seguinte (16:00) mesmo sem começar exatamente nela —
+  // por isso, além de eventForHour/eventForDayHour (que só acham o evento
+  // que COMEÇA no slot), este helper detecta quando o slot está coberto
+  // por um evento que começou numa hora anterior.
+  const eventCoveringHour = (day: Date, hour: string) => {
+    const [h] = hour.split(":").map(Number);
+    const slotStart = h * 60;
+    const slotEnd = slotStart + 60;
+    return events.find((e) => {
+      const startRaw = e.start.dateTime || e.start.date;
+      if (!startRaw) return false;
+      const start = new Date(startRaw);
+      if (!sameDay(start, day)) return false;
+      const endRaw = e.end.dateTime || e.end.date;
+      const end = endRaw ? new Date(endRaw) : new Date(start.getTime() + 60 * 60000);
+      const startMin = start.getHours() * 60 + start.getMinutes();
+      const endMin = end.getHours() * 60 + end.getMinutes();
+      return startMin < slotEnd && endMin > slotStart;
+    });
+  };
+
   const eventsForDay = (day: Date) =>
     events.filter((e) => {
       const dt = e.start.dateTime || e.start.date;
@@ -457,6 +479,7 @@ const Agenda = () => {
             <div className="space-y-1">
               {hours.map((hour) => {
                 const apt = eventForHour(hour);
+                const continuation = !apt ? eventCoveringHour(currentDate, hour) : null;
                 return (
                   <div key={hour} className="flex gap-4 min-h-[60px]">
                     <span className="text-xs text-muted-foreground w-14 pt-2 font-body font-medium">{hour}</span>
@@ -485,6 +508,13 @@ const Agenda = () => {
                               <Trash2 className="w-3.5 h-3.5 text-destructive" />
                             </button>
                           </div>
+                        </div>
+                      ) : continuation ? (
+                        <div
+                          className="w-full text-left text-xs text-muted-foreground/50 italic px-2 py-1 truncate"
+                          title={`Ocupado: ${continuation.summary || "Sem título"}`}
+                        >
+                          Ocupado — {continuation.summary || "Sem título"}
                         </div>
                       ) : (
                         <button
@@ -525,6 +555,7 @@ const Agenda = () => {
                   <div className="flex-1 grid grid-cols-7 gap-2">
                     {weekDays().map((day) => {
                       const apt = eventForDayHour(day, hour);
+                      const continuation = !apt ? eventCoveringHour(day, hour) : null;
                       return (
                         <div key={day.toISOString()} className="flex-1 border-t border-border/50 pt-1">
                           {apt ? (
@@ -548,6 +579,13 @@ const Agenda = () => {
                                   <Trash2 className="w-3 h-3 text-destructive" />
                                 </button>
                               </div>
+                            </div>
+                          ) : continuation ? (
+                            <div
+                              className="w-full h-full text-left text-[10px] text-muted-foreground/50 italic px-1 py-1 truncate"
+                              title={`Ocupado: ${continuation.summary || "Sem título"}`}
+                            >
+                              Ocupado
                             </div>
                           ) : (
                             <button
