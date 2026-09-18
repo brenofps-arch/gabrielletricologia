@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 
 const hours = Array.from({ length: 12 }, (_, i) => `${(i + 7).toString().padStart(2, "0")}:00`);
 
@@ -43,6 +43,7 @@ const sameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 const Agenda = () => {
+  const routerNavigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewMode>("month");
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -75,6 +76,23 @@ const Agenda = () => {
   const filteredPatients = patientSearch.length > 0
     ? allPatients.filter((p) => p.name.toLowerCase().includes(patientSearch.toLowerCase()))
     : allPatients.slice(0, 8);
+
+  // Eventos são criados como "Tipo: Nome do Paciente" (ver saveEvent), então
+  // extrai o texto depois dos dois-pontos e casa com o nome cadastrado.
+  // Compromissos pessoais (ex: "Pessoal | Consulta Thaissa") não batem com
+  // nenhum paciente e são ignorados ao clicar.
+  const findPatientForEvent = (summary?: string) => {
+    if (!summary) return null;
+    const afterColon = summary.includes(":") ? summary.slice(summary.lastIndexOf(":") + 1) : summary;
+    const key = afterColon.trim().toLowerCase();
+    if (!key) return null;
+    return allPatients.find((p) => p.name.trim().toLowerCase() === key) || null;
+  };
+
+  const openEventTarget = (e: GEvent) => {
+    const patient = findPatientForEvent(e.summary);
+    if (patient) routerNavigate(`/pacientes/${patient.id}`);
+  };
 
   const eventTypes = [
     { value: "Consulta", label: "🩺 Consulta" },
@@ -511,13 +529,18 @@ const Agenda = () => {
 
                 {eventsForDay(currentDate).map((apt) => {
                   const { top, height } = eventPixelStyle(apt);
+                  const patient = findPatientForEvent(apt.summary);
                   return (
                     <div
                       key={apt.id}
                       style={{ top, height }}
                       className="absolute left-0 right-0 bg-primary/10 border-l-3 border-primary rounded-lg px-3 py-1.5 group flex items-start justify-between gap-2 overflow-hidden"
                     >
-                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(apt)}>
+                      <div
+                        className={`flex-1 min-w-0 ${patient ? "cursor-pointer" : ""}`}
+                        onClick={() => openEventTarget(apt)}
+                        title={patient ? "Abrir prontuário do paciente" : undefined}
+                      >
                         <p className="text-sm font-medium text-foreground truncate">{apt.summary || "Sem título"}</p>
                         {apt.description && height > 55 && (
                           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{apt.description}</p>
@@ -590,13 +613,18 @@ const Agenda = () => {
 
                       {eventsForDay(day).map((apt) => {
                         const { top, height } = eventPixelStyle(apt);
+                        const patient = findPatientForEvent(apt.summary);
                         return (
                           <div
                             key={apt.id}
                             style={{ top, height }}
                             className="absolute left-0 right-0 bg-primary/10 border-l-3 border-primary rounded-lg px-2 py-1 group flex items-start justify-between gap-1 overflow-hidden"
                           >
-                            <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(apt)}>
+                            <div
+                              className={`flex-1 min-w-0 ${patient ? "cursor-pointer" : ""}`}
+                              onClick={() => openEventTarget(apt)}
+                              title={patient ? "Abrir prontuário do paciente" : undefined}
+                            >
                               <p className="text-xs font-medium text-foreground truncate">{apt.summary || "Sem título"}</p>
                               <span className="flex items-center gap-1 text-[10px] text-primary mt-0.5">
                                 <Clock className="w-3 h-3" />
