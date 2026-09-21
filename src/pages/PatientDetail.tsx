@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, FileDown, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2, ChevronDown, ChevronUp, Stethoscope } from "lucide-react";
+import { ArrowLeft, Plus, FileDown, Download, Loader2, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2, ChevronDown, ChevronUp, Stethoscope } from "lucide-react";
 import { formatPhone } from "@/lib/utils";import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,6 +21,7 @@ import QuoteHistory from "@/components/patient/QuoteHistory";
 import PaymentHistory from "@/components/patient/PaymentHistory";
 import LabExamHistory from "@/components/patient/LabExamHistory";
 import AnamnesisModal, { AnamnesisData, anamnesisLabels } from "@/components/patient/AnamnesisModal";
+import { downloadMedicalRecordPDF } from "@/lib/generateMedicalRecordPDF";
 import type { Tables } from "@/integrations/supabase/types";
 
 const PatientDetail = () => {
@@ -37,6 +38,7 @@ const PatientDetail = () => {
   const [showAnamnesis, setShowAnamnesis] = useState(false);
   const [openConsultationAfterAnamnesis, setOpenConsultationAfterAnamnesis] = useState(false);
   const [anamnesisCollapsed, setAnamnesisCollapsed] = useState(true);
+  const [downloadingRecord, setDownloadingRecord] = useState(false);
 
 
   // Exclusão do paciente — dupla confirmação
@@ -109,6 +111,21 @@ const PatientDetail = () => {
     }
   };
 
+  const handleDownloadRecord = async () => {
+    if (!patient) return;
+    setDownloadingRecord(true);
+    const toastId = toast.loading("Gerando prontuário...");
+    try {
+      await downloadMedicalRecordPDF(patient.id, (message) => toast.loading(message, { id: toastId }));
+      toast.success("Prontuário gerado!", { id: toastId });
+    } catch (error) {
+      console.error("Erro ao gerar prontuário:", error);
+      toast.error("Não foi possível gerar o prontuário.", { id: toastId });
+    } finally {
+      setDownloadingRecord(false);
+    }
+  };
+
   const anamnesis = (patient?.anamnesis ?? null) as AnamnesisData | null;
   const hasCompletedAnamnesis = Boolean(
     patient?.anamnesis_completed_at ||
@@ -178,6 +195,9 @@ const PatientDetail = () => {
           <Button variant="outline" size="icon" onClick={() => setDeleteStep(1)} title="Excluir paciente"
             className="text-destructive border-destructive/30 hover:bg-destructive/5">
             <Trash2 className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" className="gap-1.5" onClick={handleDownloadRecord} disabled={downloadingRecord}>
+            {downloadingRecord ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Baixar Prontuário
           </Button>
           <Button variant="outline" className="gap-1.5" onClick={() => setShowPrescription(true)}>
             <FileDown className="w-4 h-4" /> Gerar Receita
