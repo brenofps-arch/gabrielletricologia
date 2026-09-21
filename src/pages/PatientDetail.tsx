@@ -36,7 +36,6 @@ const PatientDetail = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [showAnamnesis, setShowAnamnesis] = useState(false);
   const [openConsultationAfterAnamnesis, setOpenConsultationAfterAnamnesis] = useState(false);
-  const [pendingChiefComplaint, setPendingChiefComplaint] = useState("");
   const [anamnesisCollapsed, setAnamnesisCollapsed] = useState(true);
 
 
@@ -117,8 +116,9 @@ const PatientDetail = () => {
   );
 
   const handleNewConsultation = () => {
-    // Se for a primeira consulta ou a anamnese ainda não estiver concluída, abre o modal de Anamnese
-    if (!hasCompletedAnamnesis || consultations.length === 0) {
+    // Na primeira consulta a anamnese é preenchida junto, no próprio modal da consulta.
+    // Se já houver consultas mas a anamnese nunca foi preenchida, pede a anamnese antes.
+    if (!hasCompletedAnamnesis && consultations.length > 0) {
       setOpenConsultationAfterAnamnesis(true);
       setShowAnamnesis(true);
     } else {
@@ -365,13 +365,13 @@ const PatientDetail = () => {
         open={showConsultation}
         onOpenChange={(o) => {
           setShowConsultation(o);
-          if (!o) { setEditingConsultation(null); setPendingChiefComplaint(""); }
+          if (!o) setEditingConsultation(null);
         }}
         patientId={patient.id}
         consultation={editingConsultation}
         previousConsultations={consultations}
         anamnesis={hasCompletedAnamnesis ? anamnesis : null}
-        initialChiefComplaint={pendingChiefComplaint}
+        combineAnamnesis={consultations.length === 0}
         onSuccess={refresh}
       />
       <PrescriptionModal open={showPrescription} onOpenChange={setShowPrescription} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
@@ -383,11 +383,9 @@ const PatientDetail = () => {
         patientId={patient.id}
         initialData={anamnesis}
         initialDate={patient.anamnesis_completed_at}
-        promptChiefComplaint={openConsultationAfterAnamnesis}
-        onSaved={(chiefComplaint) => {
+        onSaved={() => {
           if (openConsultationAfterAnamnesis) {
             setOpenConsultationAfterAnamnesis(false);
-            setPendingChiefComplaint(chiefComplaint || "");
             setShowConsultation(true);
           }
         }}

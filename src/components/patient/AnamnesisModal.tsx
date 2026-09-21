@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pill, Activity, HeartPulse, Users, Calendar, Scissors, Sparkles, User, FileText } from "lucide-react";
+import { Pill, Activity, HeartPulse, Users, Calendar, Scissors, Sparkles, User } from "lucide-react";
 
 export interface AnamnesisData {
   // Dados Pessoais e Sociais
@@ -127,11 +127,7 @@ interface Props {
   patientId: string;
   initialData?: Partial<AnamnesisData> | null;
   initialDate?: string | null;
-  // Quando true, exibe o campo de Histórico da Doença Atual — usado no
-  // fluxo de primeira consulta, onde o valor digitado aqui e repassado
-  // para a consulta que sera aberta em seguida (nao e salvo na anamnese).
-  promptChiefComplaint?: boolean;
-  onSaved?: (chiefComplaint?: string) => void;
+  onSaved?: () => void;
 }
 
 const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
@@ -168,75 +164,51 @@ const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
   haircare_previous_treatments: ["Nenhum tratamento prévio", "Minoxidil tópico", "Minoxidil oral", "MMP capilar", "Intradermoterapia", "LEDterapia", "Transplante capilar"],
 };
 
-const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDate, promptChiefComplaint, onSaved }: Props) => {
-  const queryClient = useQueryClient();
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<AnamnesisData>(emptyAnamnesis);
-  const [chiefComplaint, setChiefComplaint] = useState("");
-  const [customDate, setCustomDate] = useState<string>(() => {
-    if (initialDate) return new Date(initialDate).toISOString().slice(0, 10);
-    return new Date().toISOString().slice(0, 10);
-  });
+export const saveAnamnesis = async (patientId: string, form: AnamnesisData, customDate: string) => {
+  const saveIsoDate = customDate ? new Date(`${customDate}T12:00:00Z`).toISOString() : new Date().toISOString();
 
-  useEffect(() => {
-    if (open) {
-      setForm({ ...emptyAnamnesis, ...(initialData || {}) });
-      setChiefComplaint("");
-      if (initialDate) {
-        setCustomDate(new Date(initialDate).toISOString().slice(0, 10));
-      } else {
-        setCustomDate(new Date().toISOString().slice(0, 10));
-      }
-    }
-  }, [open, initialData, initialDate]);
+  // Sincroniza automaticamente com notas importantes do paciente (Alergias e Comorbidades)
+  const notesParts: string[] = [];
+  if (form.allergies?.trim()) {
+    notesParts.push(`Alergias: ${form.allergies.trim()}`);
+  }
+  if (form.comorbidities?.trim()) {
+    notesParts.push(`Comorbidades: ${form.comorbidities.trim()}`);
+  }
 
-  const set = (k: keyof AnamnesisData, v: string) => setForm((f) => ({ ...f, [k]: v }));
-
-  const appendOrSet = (k: keyof AnamnesisData, option: string) => {
-    setForm((prev) => {
-      const current = prev[k].trim();
-      if (!current) return { ...prev, [k]: option };
-      if (current.includes(option)) return prev;
-      return { ...prev, [k]: `${current}, ${option}` };
-    });
+  const updatePayload: Record<string, unknown> = {
+    anamnesis: form as unknown as Record<string, string>,
+    anamnesis_completed_at: saveIsoDate,
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    const saveIsoDate = customDate ? new Date(`${customDate}T12:00:00Z`).toISOString() : new Date().toISOString();
+  if (notesParts.length > 0) {
+    updatePayload.important_notes = notesParts.join(" | ");
+  }
 
-    // Sincroniza automaticamente com notas importantes do paciente (Alergias e Comorbidades)
-    const notesParts: string[] = [];
-    if (form.allergies?.trim()) {
-      notesParts.push(`Alergias: ${form.allergies.trim()}`);
-    }
-    if (form.comorbidities?.trim()) {
-      notesParts.push(`Comorbidades: ${form.comorbidities.trim()}`);
-    }
+  const { error } = await supabase
+    .from("patients")
+    .update(updatePayload)
+    .eq("id", patientId);
+  return error;
+};
 
-    const updatePayload: Record<string, unknown> = {
-      anamnesis: form as unknown as Record<string, string>,
-      anamnesis_completed_at: saveIsoDate,
-    };
+interface FieldsProps {
+  value: AnamnesisData;
+  onChange: (value: AnamnesisData) => void;
+  // Quando informados, exibe a barra de data da anamnese
+  date?: string;
+  onDateChange?: (date: string) => void;
+}
 
-    if (notesParts.length > 0) {
-      updatePayload.important_notes = notesParts.join(" | ");
-    }
+// Campos da anamnese, reutilizados no modal de anamnese e na primeira consulta
+export const AnamnesisFields = ({ value, onChange, date, onDateChange }: FieldsProps) => {
+  const set = (k: keyof AnamnesisData, v: string) => onChange({ ...value, [k]: v });
 
-    const { error } = await supabase
-      .from("patients")
-      .update(updatePayload)
-      .eq("id", patientId);
-    setSaving(false);
-
-    if (error) {
-      toast.error("Erro ao salvar a anamnese.");
-      return;
-    }
-    toast.success("Anamnese do paciente salva com sucesso!");
-    queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
-    onOpenChange(false);
-    onSaved?.(promptChiefComplaint ? chiefComplaint.trim() : undefined);
+  const appendOrSet = (k: keyof AnamnesisData, option: string) => {
+    const current = value[k].trim();
+    if (!current) return onChange({ ...value, [k]: option });
+    if (current.includes(option)) return;
+    onChange({ ...value, [k]: `${current}, ${option}` });
   };
 
   const renderField = (k: keyof AnamnesisData, placeholder: string, multiline = false) => (
@@ -276,14 +248,14 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
 
       {multiline ? (
         <Textarea
-          value={form[k]}
+          value={value[k]}
           onChange={(e) => set(k, e.target.value)}
           placeholder={placeholder}
           className="text-sm min-h-[68px] bg-background"
         />
       ) : (
         <Input
-          value={form[k]}
+          value={value[k]}
           onChange={(e) => set(k, e.target.value)}
           placeholder={placeholder}
           className="text-sm bg-background h-9"
@@ -293,16 +265,8 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-heading text-xl">Anamnese do Paciente</DialogTitle>
-          <DialogDescription className="font-body text-xs">
-            Preencha ou edite as informações clínicas e tricológicas do paciente. As informações ficam gravadas na ficha clínica.
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Data da Anamnese */}
+    <>
+      {onDateChange && (
         <div className="flex items-center justify-between bg-muted/30 border border-border/80 p-3 rounded-xl">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-primary" />
@@ -310,31 +274,14 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
           </div>
           <Input
             type="date"
-            value={customDate}
-            onChange={(e) => setCustomDate(e.target.value)}
+            value={date}
+            onChange={(e) => onDateChange(e.target.value)}
             className="w-44 h-8 text-xs bg-background"
           />
         </div>
+      )}
 
         <div className="space-y-6 py-2">
-          {promptChiefComplaint && (
-            <div className="bg-primary/5 border border-primary/30 rounded-xl p-4 space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                <FileText className="w-4 h-4" />
-                <span>Histórico da Doença Atual</span>
-              </div>
-              <Textarea
-                value={chiefComplaint}
-                onChange={(e) => setChiefComplaint(e.target.value)}
-                placeholder="Descreva a queixa e o histórico da doença atual do paciente..."
-                className="text-sm min-h-[68px] bg-background"
-              />
-              <p className="text-xs text-muted-foreground">
-                Este texto será usado na primeira consulta, que abre logo após salvar a anamnese.
-              </p>
-            </div>
-          )}
-
           {/* Seção 0: Dados Pessoais e Sociais */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -359,16 +306,16 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
                           if (opt !== "Sim") set("children_quantity", "");
                         }}
                         className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors ${
-                          form.has_children === opt
+                          value.has_children === opt
                             ? "bg-primary text-primary-foreground border-primary font-medium"
                             : "border-border/70 bg-muted/40 hover:bg-primary/10 hover:text-primary hover:border-primary/40 text-muted-foreground"
                         }`}
                       >
                         {opt}
                       </button>
-                      {opt === "Sim" && form.has_children === "Sim" && (
+                      {opt === "Sim" && value.has_children === "Sim" && (
                         <Input
-                          value={form.children_quantity}
+                          value={value.children_quantity}
                           onChange={(e) => set("children_quantity", e.target.value)}
                           placeholder="Quantidade"
                           className="text-xs bg-background h-7 w-24"
@@ -459,6 +406,56 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
             </div>
           </div>
         </div>
+    </>
+  );
+};
+
+const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDate, onSaved }: Props) => {
+  const queryClient = useQueryClient();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<AnamnesisData>(emptyAnamnesis);
+  const [customDate, setCustomDate] = useState<string>(() => {
+    if (initialDate) return new Date(initialDate).toISOString().slice(0, 10);
+    return new Date().toISOString().slice(0, 10);
+  });
+
+  useEffect(() => {
+    if (open) {
+      setForm({ ...emptyAnamnesis, ...(initialData || {}) });
+      if (initialDate) {
+        setCustomDate(new Date(initialDate).toISOString().slice(0, 10));
+      } else {
+        setCustomDate(new Date().toISOString().slice(0, 10));
+      }
+    }
+  }, [open, initialData, initialDate]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const error = await saveAnamnesis(patientId, form, customDate);
+    setSaving(false);
+
+    if (error) {
+      toast.error("Erro ao salvar a anamnese.");
+      return;
+    }
+    toast.success("Anamnese do paciente salva com sucesso!");
+    queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
+    onOpenChange(false);
+    onSaved?.();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-xl">Anamnese do Paciente</DialogTitle>
+          <DialogDescription className="font-body text-xs">
+            Preencha ou edite as informações clínicas e tricológicas do paciente. As informações ficam gravadas na ficha clínica.
+          </DialogDescription>
+        </DialogHeader>
+
+        <AnamnesisFields value={form} onChange={setForm} date={customDate} onDateChange={setCustomDate} />
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>

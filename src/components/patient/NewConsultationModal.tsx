@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { AnamnesisData, anamnesisLabels } from "./AnamnesisModal";
+import { AnamnesisData, anamnesisLabels, emptyAnamnesis, AnamnesisFields, saveAnamnesis } from "./AnamnesisModal";
 import PhotoLightbox from "./PhotoLightbox";
 import {
   ChevronDown, ChevronUp, ClipboardList, Calendar, Microscope, Activity, FlaskConical,
@@ -24,7 +24,8 @@ interface Props {
   consultation?: Tables<"consultations"> | null;
   previousConsultations?: Tables<"consultations">[];
   anamnesis?: AnamnesisData | null;
-  initialChiefComplaint?: string;
+  // Primeira consulta: exibe a anamnese logo acima da evolução e salva as duas juntas
+  combineAnamnesis?: boolean;
   onSuccess: () => void;
 }
 
@@ -98,7 +99,7 @@ const getVisitMode = (c: Tables<"consultations"> | null | undefined): ViewMode =
   return "full";
 };
 
-const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, previousConsultations = [], anamnesis, initialChiefComplaint, onSuccess }: Props) => {
+const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, previousConsultations = [], anamnesis, combineAnamnesis, onSuccess }: Props) => {
   const [loading, setLoading] = useState(false);
   const [showAnamnesisSummary, setShowAnamnesisSummary] = useState(false);
   const [showTrichoscopyFields, setShowTrichoscopyFields] = useState(true);
@@ -119,6 +120,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
   });
 
   const [exam, setExam] = useState<TrichoscopyExam>(emptyTrichoscopy);
+  const [anamnesisForm, setAnamnesisForm] = useState<AnamnesisData>(emptyAnamnesis);
   const [pendingPhotos, setPendingPhotos] = useState<{ file: File; previewUrl: string }[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
@@ -167,6 +169,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
 
   useEffect(() => {
     if (open) {
+      setAnamnesisForm({ ...emptyAnamnesis, ...(anamnesis || {}) });
       setPendingPhotos([]);
       setLightboxIndex(null);
       if (consultation) {
@@ -190,7 +193,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
       } else {
         setForm({
           consultation_date: new Date().toISOString().slice(0, 10),
-          chief_complaint: initialChiefComplaint || "",
+          chief_complaint: "",
           physical_exam_notes: "",
           diagnosis: "",
           treatment_plan: "",
@@ -205,7 +208,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
         setViewMode(previousConsultations.length === 0 ? "full" : "chooser");
       }
     }
-  }, [open, consultation, initialChiefComplaint]);
+  }, [open, consultation]);
 
   const setExamField = (k: keyof TrichoscopyExam, val: string) => {
     setExam((prev) => ({ ...prev, [k]: val }));
@@ -223,6 +226,8 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
     setForm((f) => ({ ...f, procedure_type: type, procedure_number: computeProcedureNumber(type) }));
   };
 
+  const combined = !!combineAnamnesis && !consultation && viewMode === "full";
+
   const handleSubmit = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
@@ -235,6 +240,16 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
     const saveIsoDate = form.consultation_date
       ? new Date(`${form.consultation_date}T12:00:00Z`).toISOString()
       : new Date().toISOString();
+
+    if (combined) {
+      const anamnesisError = await saveAnamnesis(patientId, anamnesisForm, form.consultation_date);
+      if (anamnesisError) {
+        console.error("Erro ao salvar anamnese:", anamnesisError);
+        toast.error(`Erro ao salvar a anamnese: ${anamnesisError.message}`);
+        setLoading(false);
+        return;
+      }
+    }
 
     let payload: Record<string, unknown>;
 
@@ -379,7 +394,9 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
       console.error("Erro ao salvar consulta:", saveError);
       toast.error(`Erro ao salvar consulta: ${saveError.message}`);
     } else {
-      toast.success(consultation ? "Consulta atualizada com sucesso!" : "Consulta registrada com sucesso!");
+      toast.success(
+        consultation ? "Consulta atualizada com sucesso!" : combined ? "Anamnese e consulta registradas com sucesso!" : "Consulta registrada com sucesso!"
+      );
       onSuccess();
       onOpenChange(false);
     }
@@ -420,6 +437,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
       if (viewMode === "procedimento") return "Editar Procedimento";
       return "Editar Evolução Clínica";
     }
+    if (combined) return "Primeira Consulta";
     if (viewMode === "chooser") return "Nova Evolução Clínica";
     if (viewMode === "retorno") return "Registrar Retorno";
     if (viewMode === "procedimento") return "Registrar Procedimento";
@@ -431,7 +449,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-xl flex items-center gap-1.5">
-            {!consultation && viewMode !== "chooser" && (
+            {!consultation && !combineAnamnesis && viewMode !== "chooser" && (
               <Button
                 type="button"
                 variant="ghost"
@@ -485,7 +503,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
             </div>
 
             {/* Resumo rápido da Anamnese para consulta durante o atendimento */}
-            {anamnesis && Object.values(anamnesis).some((v) => typeof v === "string" && v.trim().length > 0) && (
+            {!combined && anamnesis && Object.values(anamnesis).some((v) => typeof v === "string" && v.trim().length > 0) && (
               <div className="bg-muted/40 border border-border rounded-xl p-3 text-xs">
                 <button
                   type="button"
@@ -512,6 +530,19 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
                   </div>
                 )}
               </div>
+            )}
+
+            {combined && (
+              <>
+                <div className="pt-2">
+                  <h3 className="font-heading text-lg font-semibold text-foreground">Anamnese</h3>
+                  <p className="text-xs text-muted-foreground">Preencha a anamnese e, logo abaixo, os dados da primeira consulta.</p>
+                </div>
+                <AnamnesisFields value={anamnesisForm} onChange={setAnamnesisForm} />
+                <div className="border-t border-border pt-4">
+                  <h3 className="font-heading text-lg font-semibold text-foreground">Primeira Consulta</h3>
+                </div>
+              </>
             )}
 
             {viewMode === "full" && (
@@ -896,7 +927,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           {viewMode !== "chooser" && (
             <Button onClick={handleSubmit} disabled={loading}>
-              {loading ? "Salvando..." : consultation ? "Salvar Alterações" : "Salvar Evolução"}
+              {loading ? "Salvando..." : consultation ? "Salvar Alterações" : combined ? "Salvar Anamnese e Consulta" : "Salvar Evolução"}
             </Button>
           )}
         </DialogFooter>
