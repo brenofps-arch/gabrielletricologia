@@ -97,10 +97,11 @@ const Pacientes = () => {
       </div>
 
       <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="grid grid-cols-[1fr_150px_180px_80px_40px] gap-4 px-5 py-3 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider font-body">
+        <div className="grid grid-cols-[minmax(200px,340px)_150px_minmax(180px,240px)_120px_80px_1fr] gap-4 px-5 py-3 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider font-body">
           <span>Paciente</span>
           <span>Telefone</span>
           <span>Diagnóstico</span>
+          <span>Tipo</span>
           <span>Sessões</span>
           <span />
         </div>
@@ -114,7 +115,7 @@ const Pacientes = () => {
             <div
               key={patient.id}
               onClick={() => navigate(`/pacientes/${patient.id}`)}
-              className="grid grid-cols-[1fr_150px_180px_80px_40px] gap-4 px-5 py-4 border-b border-border/50 items-center hover:bg-muted/30 transition-colors cursor-pointer"
+              className="grid grid-cols-[minmax(200px,340px)_150px_minmax(180px,240px)_120px_80px_1fr] gap-4 px-5 py-4 border-b border-border/50 items-center hover:bg-muted/30 transition-colors cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
@@ -129,8 +130,14 @@ const Pacientes = () => {
                 </span>
               ) : <span className="text-sm text-muted-foreground">—</span>}
 
+              {procedureCounts[patient.id] ? (
+                <span className="text-xs font-medium px-3 py-1 rounded-full bg-primary/15 text-primary w-fit">Procedimento</span>
+              ) : (
+                <span className="text-xs font-medium px-3 py-1 rounded-full bg-muted text-muted-foreground w-fit">Consulta</span>
+              )}
+
               <span className="text-sm text-foreground font-medium">{procedureCounts[patient.id] || 0}</span>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              <ChevronRight className="w-4 h-4 text-muted-foreground justify-self-end" />
             </div>
           ))
         )}
