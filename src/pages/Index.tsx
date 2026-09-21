@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceToNow, startOfMonth, endOfMonth, addDays, differenceInCalendarDays, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { findPatientBySummary } from "@/lib/patientMatch";
 
 interface GEvent {
   id: string;
@@ -51,46 +52,16 @@ const Index = () => {
     })();
   }, []);
 
-  const today = format(new Date(), "yyyy-MM-dd");
-
-  const { data: stats } = useQuery({
-    queryKey: ["dashboard-stats", userId],
+  const { data: patientList = [] } = useQuery({
+    queryKey: ["dashboard-patient-names", userId],
     enabled: !!userId,
     queryFn: async () => {
-      const now = new Date();
-      const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
-      const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
-      const weekEnd = format(addDays(now, 7), "yyyy-MM-dd");
-
-      const [todayRes, patientsRes, monthRes, weekRes] = await Promise.all([
-        supabase
-          .from("appointments")
-          .select("id", { count: "exact", head: true })
-          .eq("appointment_date", today)
-          .neq("status", "cancelled"),
-        supabase.from("patients").select("id", { count: "exact", head: true }),
-        supabase
-          .from("appointments")
-          .select("id", { count: "exact", head: true })
-          .gte("appointment_date", monthStart)
-          .lte("appointment_date", monthEnd)
-          .neq("status", "cancelled"),
-        supabase
-          .from("appointments")
-          .select("id", { count: "exact", head: true })
-          .gte("appointment_date", today)
-          .lte("appointment_date", weekEnd)
-          .neq("status", "cancelled"),
-      ]);
-
-      return {
-        today: todayRes.count ?? 0,
-        patients: patientsRes.count ?? 0,
-        month: monthRes.count ?? 0,
-        nextWeek: weekRes.count ?? 0,
-      };
+      const { data, error } = await supabase.from("patients").select("id, name");
+      if (error) throw error;
+      return data ?? [];
     },
   });
+  const patientCount = patientList.length;
 
   const { data: procedureAlerts = [] } = useQuery({
     queryKey: ["dashboard-procedure-alerts", userId],
@@ -127,14 +98,19 @@ const Index = () => {
     },
   });
 
-  const { data: upcomingResult } = useQuery({
-    queryKey: ["dashboard-upcoming-gcal", userId],
+  // Uma única busca no Google Calendar cobre o mês atual e os próximos 7 dias;
+  // dela saem a lista de próximas consultas e os contadores dos cards.
+  const { data: calendarResult } = useQuery({
+    queryKey: ["dashboard-gcal", userId],
     enabled: !!userId,
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return { connected: false, events: [] as GEvent[] };
-      const timeMin = new Date().toISOString();
-      const timeMax = addDays(new Date(), 7).toISOString();
+      const now = new Date();
+      const timeMin = startOfMonth(now).toISOString();
+      const monthEnd = endOfMonth(now);
+      const weekEnd = addDays(now, 7);
+      const timeMax = (monthEnd > weekEnd ? monthEnd : weekEnd).toISOString();
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` } });
       const json = await res.json();
@@ -142,8 +118,34 @@ const Index = () => {
       return { connected: !!json.connected, events: (json.events ?? []) as GEvent[] };
     },
   });
-  const upcoming = upcomingResult?.events ?? [];
-  const calendarConnected = upcomingResult?.connected ?? true;
+  const calendarConnected = calendarResult?.connected ?? true;
+
+  const eventStart = (e: GEvent) => {
+    if (e.start.dateTime) return new Date(e.start.dateTime);
+    return new Date(`${e.start.date}T00:00:00`);
+  };
+  const eventEnd = (e: GEvent) => {
+    if (e.end.dateTime) return new Date(e.end.dateTime);
+    return new Date(`${e.end.date}T00:00:00`);
+  };
+
+  // Os contadores só consideram eventos que batem com um paciente cadastrado
+  // (compromissos pessoais ficam de fora).
+  const isPatientEvent = (e: GEvent) => !!findPatientBySummary(e.summary, patientList);
+
+  const now = new Date();
+  const weekLimit = addDays(now, 7);
+  const calendarEvents = (calendarResult?.events ?? []).filter((e) => e.start.dateTime || e.start.date);
+  const upcoming = calendarEvents.filter((e) => eventEnd(e) > now && eventStart(e) < weekLimit);
+  const patientEvents = calendarEvents.filter(isPatientEvent);
+  const stats = {
+    today: patientEvents.filter((e) => isSameDay(eventStart(e), now)).length,
+    month: patientEvents.filter((e) => {
+      const s = eventStart(e);
+      return s >= startOfMonth(now) && s <= endOfMonth(now);
+    }).length,
+    nextWeek: upcoming.filter(isPatientEvent).length,
+  };
 
   const { data: activities = [] } = useQuery({
     queryKey: ["dashboard-activity", userId],
@@ -183,10 +185,10 @@ const Index = () => {
   });
 
   const statCards = [
-    { label: "Consultas Hoje", value: stats?.today ?? 0, icon: Calendar, color: "bg-primary/10 text-primary" },
-    { label: "Pacientes Cadastrados", value: stats?.patients ?? 0, icon: Users, color: "bg-mint/30 text-secondary-foreground" },
-    { label: "Consultas no Mês", value: stats?.month ?? 0, icon: ClipboardList, color: "bg-rose-gold-light text-primary" },
-    { label: "Próximos 7 dias", value: stats?.nextWeek ?? 0, icon: CalendarClock, color: "bg-mint-light text-secondary-foreground" },
+    { label: "Consultas Hoje", value: stats.today, icon: Calendar, color: "bg-primary/10 text-primary" },
+    { label: "Pacientes Cadastrados", value: patientCount, icon: Users, color: "bg-mint/30 text-secondary-foreground" },
+    { label: "Consultas no Mês", value: stats.month, icon: ClipboardList, color: "bg-rose-gold-light text-primary" },
+    { label: "Próximos 7 dias", value: stats.nextWeek, icon: CalendarClock, color: "bg-mint-light text-secondary-foreground" },
   ];
 
   return (

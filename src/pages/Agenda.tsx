@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { findPatientBySummary } from "@/lib/patientMatch";
 import { useSearchParams, useNavigate } from "react-router-dom";
 
 const hours = Array.from({ length: 12 }, (_, i) => `${(i + 7).toString().padStart(2, "0")}:00`);
@@ -77,17 +78,9 @@ const Agenda = () => {
     ? allPatients.filter((p) => p.name.toLowerCase().includes(patientSearch.toLowerCase()))
     : allPatients.slice(0, 8);
 
-  // Eventos são criados como "Tipo: Nome do Paciente" (ver saveEvent), então
-  // extrai o texto depois dos dois-pontos e casa com o nome cadastrado.
   // Compromissos pessoais (ex: "Pessoal | Consulta Thaissa") não batem com
   // nenhum paciente e são ignorados ao clicar.
-  const findPatientForEvent = (summary?: string) => {
-    if (!summary) return null;
-    const afterColon = summary.includes(":") ? summary.slice(summary.lastIndexOf(":") + 1) : summary;
-    const key = afterColon.trim().toLowerCase();
-    if (!key) return null;
-    return allPatients.find((p) => p.name.trim().toLowerCase() === key) || null;
-  };
+  const findPatientForEvent = (summary?: string) => findPatientBySummary(summary, allPatients);
 
   const openEventTarget = (e: GEvent) => {
     const patient = findPatientForEvent(e.summary);
