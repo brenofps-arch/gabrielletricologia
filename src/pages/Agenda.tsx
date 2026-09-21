@@ -295,6 +295,10 @@ const Agenda = () => {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       const json = await res.json();
+      if (json.error) {
+        toast({ title: "Não foi possível atualizar a agenda", description: json.error, variant: "destructive" });
+        return;
+      }
       setConnected(json.connected);
       setEvents(json.events || []);
     } catch (e) {

@@ -138,6 +138,7 @@ const Index = () => {
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` } });
       const json = await res.json();
+      if (json.error) throw new Error(json.error);
       return { connected: !!json.connected, events: (json.events ?? []) as GEvent[] };
     },
   });
