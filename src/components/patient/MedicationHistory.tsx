@@ -87,7 +87,13 @@ const MedicationHistory = ({ patientId, consultations = [] }: Props) => {
 
   if (isLoading) return <div className="text-center py-8 text-muted-foreground text-sm">Carregando...</div>;
 
-  const isEmpty = (!prescriptions || prescriptions.length === 0) && consultationsWithPrescription.length === 0;
+  // Prescrições de consultas e registros/receitas numa única linha do tempo, da mais recente para a mais antiga.
+  const timeline = [
+    ...consultationsWithPrescription.map((c) => ({ kind: "consultation" as const, date: c.consultation_date, consultation: c })),
+    ...(prescriptions ?? []).map((rx) => ({ kind: "prescription" as const, date: rx.prescribed_at, prescription: rx })),
+  ].sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime());
+
+  const isEmpty = timeline.length === 0;
 
   return (
     <div className="space-y-4">
@@ -104,27 +110,27 @@ const MedicationHistory = ({ patientId, consultations = [] }: Props) => {
         </div>
       )}
 
-      {consultationsWithPrescription.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Prescrições Registradas em Consulta</p>
-          {consultationsWithPrescription.map((c) => (
-            <div key={c.id} className="bg-card border border-border rounded-xl p-4">
+      {timeline.map((entry) => {
+        if (entry.kind === "consultation") {
+          const c = entry.consultation;
+          return (
+            <div key={`c-${c.id}`} className="bg-card border border-border rounded-xl p-4">
               <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                 <Calendar className="w-3.5 h-3.5" />
                 {new Date(c.consultation_date).toLocaleDateString("pt-BR")}
+                <span className="ml-1 text-[10px] uppercase tracking-wider">Consulta</span>
               </div>
               <div className="flex items-start gap-2">
                 <Pill className="w-3.5 h-3.5 mt-0.5 text-primary" />
                 <p className="text-sm text-foreground font-body whitespace-pre-line">{c.prescription_notes}</p>
               </div>
             </div>
-          ))}
-        </div>
-      )}
-      {prescriptions?.map((rx) => {
+          );
+        }
+        const rx = entry.prescription;
         const hasItems = (rx.prescription_items?.length ?? 0) > 0;
         return (
-          <div key={rx.id} className="bg-card border border-border rounded-xl p-4">
+          <div key={`r-${rx.id}`} className="bg-card border border-border rounded-xl p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
               <Calendar className="w-3.5 h-3.5" />
               {new Date(rx.prescribed_at).toLocaleDateString("pt-BR")}
