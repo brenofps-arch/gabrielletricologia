@@ -301,10 +301,13 @@ export const AnamnesisFields = ({ value, onChange, date, onDateChange }: FieldsP
                     <div key={opt} className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => {
-                          set("has_children", opt);
-                          if (opt !== "Sim") set("children_quantity", "");
-                        }}
+                        onClick={() =>
+                          onChange({
+                            ...value,
+                            has_children: opt,
+                            ...(opt !== "Sim" ? { children_quantity: "" } : {}),
+                          })
+                        }
                         className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors ${
                           value.has_children === opt
                             ? "bg-primary text-primary-foreground border-primary font-medium"
