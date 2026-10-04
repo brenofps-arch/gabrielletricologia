@@ -1,6 +1,7 @@
 export const CLINIC_LOCATIONS = [
   { value: "vila_velha", label: "Vila Velha - ES", short: "Vila Velha" },
   { value: "vitoria", label: "Vitória - ES", short: "Vitória" },
+  { value: "cariacica", label: "Cariacica - ES", short: "Cariacica" },
   { value: "niteroi", label: "Niterói - RJ", short: "Niterói" },
 ] as const;
 
