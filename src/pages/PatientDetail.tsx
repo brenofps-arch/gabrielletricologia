@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, FileDown, Download, Loader2, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2, ChevronDown, ChevronUp, Stethoscope } from "lucide-react";
+import { ArrowLeft, Plus, FileDown, Download, Loader2, MapPin, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2, ChevronDown, ChevronUp, Stethoscope } from "lucide-react";
 import { formatPhone } from "@/lib/utils";import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,6 +21,7 @@ import QuoteHistory from "@/components/patient/QuoteHistory";
 import PaymentHistory from "@/components/patient/PaymentHistory";
 import LabExamHistory from "@/components/patient/LabExamHistory";
 import AnamnesisModal, { AnamnesisData, anamnesisLabels } from "@/components/patient/AnamnesisModal";
+import { clinicLocationShort } from "@/lib/clinicLocations";
 import { downloadMedicalRecordPDF } from "@/lib/generateMedicalRecordPDF";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -171,6 +172,9 @@ const PatientDetail = () => {
             {patient.email && <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" />{patient.email}</span>}
             {patient.birth_date && <span className="flex items-center gap-1"><Cake className="w-3.5 h-3.5" />{new Date(patient.birth_date + "T12:00").toLocaleDateString("pt-BR")}</span>}
             {patient.cpf && <span className="flex items-center gap-1 text-xs">CPF: {patient.cpf}</span>}
+            {clinicLocationShort(patient.clinic_location) && (
+              <span className="flex items-center gap-1 text-xs"><MapPin className="w-3.5 h-3.5" />{clinicLocationShort(patient.clinic_location)}</span>
+            )}
             {patient.referral_source && (
               <span className="text-xs font-medium px-3 py-1 rounded-full bg-muted text-muted-foreground border border-border">
                 {{

@@ -12,13 +12,14 @@ import {
 import { formatPhone, formatCPF } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { CLINIC_LOCATIONS, clinicLocationShort } from "@/lib/clinicLocations";
 
 const Pacientes = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ name: "", phone: "", email: "", birth_date: "", referral_source: "", cpf: "" });
+  const [newForm, setNewForm] = useState({ name: "", phone: "", email: "", birth_date: "", referral_source: "", cpf: "", clinic_location: "" });
   const [saving, setSaving] = useState(false);
 
   const { data: patients = [], isLoading } = useQuery({
@@ -30,20 +31,23 @@ const Pacientes = () => {
     },
   });
 
-  const { data: procedureCounts = {} } = useQuery({
-    queryKey: ["procedure-session-counts"],
+  const { data: visitStats = { procedures: {}, lastVisit: {} } } = useQuery({
+    queryKey: ["patient-visit-stats"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consultations")
-        .select("patient_id")
-        .eq("visit_type", "procedimento");
+        .select("patient_id, visit_type, consultation_date");
       if (error) throw error;
-      return (data ?? []).reduce((acc: Record<string, number>, c) => {
-        acc[c.patient_id] = (acc[c.patient_id] || 0) + 1;
-        return acc;
-      }, {});
+      const procedures: Record<string, number> = {};
+      const lastVisit: Record<string, string> = {};
+      for (const c of data ?? []) {
+        if (c.visit_type === "procedimento") procedures[c.patient_id] = (procedures[c.patient_id] || 0) + 1;
+        if (!lastVisit[c.patient_id] || c.consultation_date > lastVisit[c.patient_id]) lastVisit[c.patient_id] = c.consultation_date;
+      }
+      return { procedures, lastVisit };
     },
   });
+  const procedureCounts = visitStats.procedures;
 
   const filtered = patients.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -61,12 +65,13 @@ const Pacientes = () => {
       birth_date: newForm.birth_date || null,
       referral_source: newForm.referral_source || null,
       cpf: newForm.cpf || null,
+      clinic_location: newForm.clinic_location || null,
     });
 
     if (error) toast.error("Erro ao cadastrar paciente.");
     else {
       toast.success("Paciente cadastrado!");
-      setNewForm({ name: "", phone: "", email: "", birth_date: "", referral_source: "", cpf: "" });
+      setNewForm({ name: "", phone: "", email: "", birth_date: "", referral_source: "", cpf: "", clinic_location: "" });
       setShowNew(false);
       queryClient.invalidateQueries({ queryKey: ["patients"] });
     }
@@ -97,12 +102,14 @@ const Pacientes = () => {
       </div>
 
       <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="grid grid-cols-[minmax(200px,340px)_150px_minmax(180px,240px)_120px_80px_1fr] gap-4 px-5 py-3 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider font-body">
+        <div className="grid grid-cols-[minmax(230px,2fr)_120px_90px_minmax(150px,1fr)_105px_60px_95px_20px] gap-3 px-5 py-3 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider font-body">
           <span>Paciente</span>
           <span>Telefone</span>
+          <span>Local</span>
           <span>Diagnóstico</span>
           <span>Tipo</span>
           <span>Sessões</span>
+          <span>Última visita</span>
           <span />
         </div>
 
@@ -115,7 +122,7 @@ const Pacientes = () => {
             <div
               key={patient.id}
               onClick={() => navigate(`/pacientes/${patient.id}`)}
-              className="grid grid-cols-[minmax(200px,340px)_150px_minmax(180px,240px)_120px_80px_1fr] gap-4 px-5 py-4 border-b border-border/50 items-center hover:bg-muted/30 transition-colors cursor-pointer"
+              className="grid grid-cols-[minmax(230px,2fr)_120px_90px_minmax(150px,1fr)_105px_60px_95px_20px] gap-3 px-5 py-4 border-b border-border/50 items-center hover:bg-muted/30 transition-colors cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
@@ -124,6 +131,7 @@ const Pacientes = () => {
                 <span className="text-sm font-medium text-foreground">{patient.name}</span>
               </div>
               <span className="text-sm text-muted-foreground">{patient.phone ? formatPhone(patient.phone) : "—"}</span>
+              <span className="text-sm text-foreground">{clinicLocationShort(patient.clinic_location) ?? <span className="text-muted-foreground">—</span>}</span>
               {patient.diagnosis ? (
                 <span className="text-xs font-medium px-3 py-1 rounded-full bg-mint-light text-secondary-foreground w-fit">
                   {patient.diagnosis}
@@ -137,6 +145,10 @@ const Pacientes = () => {
               )}
 
               <span className="text-sm text-foreground font-medium">{procedureCounts[patient.id] || 0}</span>
+
+              <span className="text-sm text-muted-foreground">
+                {visitStats.lastVisit[patient.id] ? new Date(visitStats.lastVisit[patient.id]).toLocaleDateString("pt-BR") : "—"}
+              </span>
               <ChevronRight className="w-4 h-4 text-muted-foreground justify-self-end" />
             </div>
           ))
@@ -171,6 +183,19 @@ const Pacientes = () => {
               <Input className="mt-1" placeholder="000.000.000-00"
                 value={newForm.cpf}
                 onChange={(e) => setNewForm({ ...newForm, cpf: formatCPF(e.target.value) })} />
+            </div>
+            <div>
+              <Label>Local de atendimento</Label>
+              <Select value={newForm.clinic_location} onValueChange={(v) => setNewForm({ ...newForm, clinic_location: v })}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Onde a doutora atende este paciente..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLINIC_LOCATIONS.map((l) => (
+                    <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Como nos conheceu?</Label>

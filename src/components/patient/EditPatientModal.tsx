@@ -10,6 +10,7 @@ import { formatPhone, formatCPF } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { CLINIC_LOCATIONS } from "@/lib/clinicLocations";
 
 interface EditPatientModalProps {
   open: boolean;
@@ -24,6 +25,7 @@ interface EditPatientModalProps {
     birth_date: string | null;
     referral_source: string | null;
     cpf: string | null;
+    clinic_location: string | null;
   };
 }
 
@@ -31,7 +33,7 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    name: "", phone: "", email: "", diagnosis: "", birth_date: "", referral_source: "", cpf: "",
+    name: "", phone: "", email: "", diagnosis: "", birth_date: "", referral_source: "", cpf: "", clinic_location: "",
   });
 
   useEffect(() => {
@@ -44,6 +46,7 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
         birth_date: patient.birth_date || "",
         referral_source: patient.referral_source || "",
         cpf: patient.cpf || "",
+        clinic_location: patient.clinic_location || "",
       });
     }
   }, [open, patient]);
@@ -62,6 +65,7 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
         birth_date: form.birth_date || null,
         referral_source: form.referral_source || null,
         cpf: form.cpf || null,
+        clinic_location: form.clinic_location || null,
       })
       .eq("id", patient.id);
 
@@ -109,6 +113,20 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
           <div>
             <Label>Diagnóstico</Label>
             <Input value={form.diagnosis} onChange={(e) => setForm({ ...form, diagnosis: e.target.value })} placeholder="Preenchido após a consulta" className="mt-1" />
+          </div>
+
+          <div>
+            <Label>Local de atendimento</Label>
+            <Select value={form.clinic_location} onValueChange={(v) => setForm({ ...form, clinic_location: v })}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Onde a doutora atende este paciente..." />
+              </SelectTrigger>
+              <SelectContent>
+                {CLINIC_LOCATIONS.map((l) => (
+                  <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>

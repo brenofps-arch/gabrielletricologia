@@ -364,6 +364,7 @@ export type Database = {
           anamnesis: Json | null
           anamnesis_completed_at: string | null
           birth_date: string | null
+          clinic_location: string | null
           condition: string | null
           cpf: string | null
           created_at: string
@@ -382,6 +383,7 @@ export type Database = {
           anamnesis?: Json | null
           anamnesis_completed_at?: string | null
           birth_date?: string | null
+          clinic_location?: string | null
           condition?: string | null
           cpf?: string | null
           created_at?: string
@@ -400,6 +402,7 @@ export type Database = {
           anamnesis?: Json | null
           anamnesis_completed_at?: string | null
           birth_date?: string | null
+          clinic_location?: string | null
           condition?: string | null
           cpf?: string | null
           created_at?: string
