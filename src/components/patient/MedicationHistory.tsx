@@ -37,7 +37,7 @@ const MedicationHistory = ({ patientId, consultations = [] }: Props) => {
     },
   });
 
-  const consultationsWithPrescription = consultations.filter((c) => c.prescription_notes?.trim());
+  const consultationsWithPrescription = consultations.filter((c) => /[\p{L}\p{N}]/u.test(c.prescription_notes ?? ""));
 
   const openAdd = () => {
     setDate(today());

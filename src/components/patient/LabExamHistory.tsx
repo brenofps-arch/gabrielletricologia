@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, FlaskConical, Trash2, FileText, Image as ImageIcon, ExternalLink, Loader2 } from "lucide-react";
+import { Plus, FlaskConical, Trash2, FileText, Image as ImageIcon, ExternalLink, Loader2, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -14,14 +14,16 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface Props {
   patientId: string;
+  consultations?: Tables<"consultations">[];
 }
 
 const LAB_EXAMS_BUCKET = "lab-exams";
 
-const LabExamHistory = ({ patientId }: Props) => {
+const LabExamHistory = ({ patientId, consultations = [] }: Props) => {
   const queryClient = useQueryClient();
   const [showNew, setShowNew] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -45,6 +47,14 @@ const LabExamHistory = ({ patientId }: Props) => {
       return data;
     },
   });
+
+  // Exames digitados nas consultas e arquivos enviados, numa única linha do tempo (mais recente primeiro).
+  const timeline = [
+    ...consultations
+      .filter((c) => /[\p{L}\p{N}]/u.test(c.exams_brought ?? ""))
+      .map((c) => ({ kind: "consultation" as const, date: c.consultation_date, consultation: c })),
+    ...exams.map((e) => ({ kind: "file" as const, date: e.exam_date ? `${e.exam_date}T12:00:00` : e.created_at, exam: e })),
+  ].sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime());
 
   const resetForm = () => {
     setFile(null);
@@ -141,14 +151,32 @@ const LabExamHistory = ({ patientId }: Props) => {
 
         {isLoading ? (
           <div className="text-sm text-muted-foreground py-4 text-center">Carregando...</div>
-        ) : exams.length === 0 ? (
+        ) : timeline.length === 0 ? (
           <div className="text-center py-10 text-muted-foreground">
             <FlaskConical className="w-10 h-10 mx-auto mb-2 opacity-40" />
             <p className="text-sm">Nenhum exame enviado ainda.</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {exams.map((e) => (
+            {timeline.map((entry) => {
+              if (entry.kind === "consultation") {
+                const c = entry.consultation;
+                return (
+                  <div key={`c-${c.id}`} className="border border-border rounded-lg px-4 py-3 bg-card">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {new Date(c.consultation_date).toLocaleDateString("pt-BR")}
+                      <span className="ml-1 text-[10px] uppercase tracking-wider">Consulta</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <FlaskConical className="w-3.5 h-3.5 mt-0.5 text-primary" />
+                      <p className="text-sm text-foreground font-body whitespace-pre-line">{c.exams_brought}</p>
+                    </div>
+                  </div>
+                );
+              }
+              const e = entry.exam;
+              return (
               <div key={e.id} className="flex items-center justify-between border border-border rounded-lg px-4 py-3 bg-card hover:bg-muted/30 transition-colors">
                 <div className="flex items-start gap-2.5 flex-1 min-w-0">
                   <div className="mt-0.5 flex-shrink-0">{fileIcon(e.file_type)}</div>
@@ -189,7 +217,8 @@ const LabExamHistory = ({ patientId }: Props) => {
                   </Button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -69,6 +69,38 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
+  // Mesmas chaves das abas, então os dados são compartilhados (sem consulta duplicada).
+  const { data: prescriptionRows = [] } = useQuery({
+    queryKey: ["prescriptions", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("prescriptions")
+        .select("*, prescription_items(*)")
+        .eq("patient_id", id!)
+        .order("prescribed_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: labExamRows = [] } = useQuery({
+    queryKey: ["lab_exams", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lab_exams")
+        .select("*")
+        .eq("patient_id", id!)
+        .order("exam_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const medicationsCount = prescriptionRows.length + consultations.filter((c) => /[\p{L}\p{N}]/u.test(c.prescription_notes ?? "")).length;
+  const examsCount = labExamRows.length + consultations.filter((c) => /[\p{L}\p{N}]/u.test(c.exams_brought ?? "")).length;
+
   const procedureSessionsCount = consultations.filter((c) => c.visit_type === "procedimento").length;
 
   const saveNotes = async () => {
@@ -353,8 +385,8 @@ const PatientDetail = () => {
       <Tabs defaultValue="timeline" className="w-full">
         <TabsList className="bg-muted/50">
           <TabsTrigger value="timeline">Histórico de Consultas ({consultations.length})</TabsTrigger>
-          <TabsTrigger value="medications">Farmacoterapia</TabsTrigger>
-          <TabsTrigger value="exams">Exames Laboratoriais</TabsTrigger>
+          <TabsTrigger value="medications">Farmacoterapia ({medicationsCount})</TabsTrigger>
+          <TabsTrigger value="exams">Exames Laboratoriais ({examsCount})</TabsTrigger>
           <TabsTrigger value="quotes">Orçamentos</TabsTrigger>
           <TabsTrigger value="payments">Pagamentos</TabsTrigger>
         </TabsList>
@@ -374,7 +406,7 @@ const PatientDetail = () => {
           <MedicationHistory patientId={patient.id} consultations={consultations} />
         </TabsContent>
         <TabsContent value="exams" className="mt-4">
-          <LabExamHistory patientId={patient.id} />
+          <LabExamHistory patientId={patient.id} consultations={consultations} />
         </TabsContent>
         <TabsContent value="quotes" className="mt-4">
           <QuoteHistory patientId={patient.id} patientName={patient.name} />
