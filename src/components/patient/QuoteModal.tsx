@@ -8,6 +8,7 @@ import { FileDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { generateQuotePDF } from "@/lib/generateQuotePDF";
+import ProcedureMenu from "./ProcedureMenu";
 
 interface Props {
   open: boolean;
@@ -19,6 +20,10 @@ interface Props {
 
 const DEFAULT_PAYMENT = "Débito ou crédito até 6x";
 const DEFAULT_PIX_KEY = "43.680.391.0001-45";
+
+// Acréscimo de parcelamento sobre o valor à vista, conforme os orçamentos já emitidos.
+const INSTALLMENT_FACTOR_3X = 1.1123;
+const INSTALLMENT_FACTOR_6X = 1.1432;
 
 const emptyForm = {
   includedItems: "",
@@ -35,6 +40,17 @@ const emptyForm = {
 const QuoteModal = ({ open, onOpenChange, patientId, patientName, onSuccess }: Props) => {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(emptyForm);
+
+  const applyMenu = ({ lines, total }: { lines: string; total: number }) => {
+    setForm((f) => ({
+      ...f,
+      includedItems: lines,
+      priceFull: total.toFixed(2),
+      price3x: (total * INSTALLMENT_FACTOR_3X).toFixed(2),
+      price6x: (total * INSTALLMENT_FACTOR_6X).toFixed(2),
+    }));
+    toast.success("Valores aplicados ao orçamento. Você pode ajustar os campos abaixo.");
+  };
 
   const handleSubmit = async (generatePDF: boolean) => {
     if (!form.includedItems.trim()) {
@@ -103,12 +119,14 @@ const QuoteModal = ({ open, onOpenChange, patientId, patientName, onSuccess }: P
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-xl">Gerar Orçamento</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
+          <ProcedureMenu onApply={applyMenu} />
+
           <div>
             <Label className="font-body text-sm">O que está incluso *</Label>
             <Textarea
