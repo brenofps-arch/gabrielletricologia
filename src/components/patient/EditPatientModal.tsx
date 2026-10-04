@@ -10,7 +10,7 @@ import { formatPhone, formatCPF } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { CLINIC_LOCATIONS } from "@/lib/clinicLocations";
+import ClinicLocationPicker from "@/components/patient/ClinicLocationPicker";
 
 interface EditPatientModalProps {
   open: boolean;
@@ -117,16 +117,7 @@ const EditPatientModal = ({ open, onOpenChange, patient }: EditPatientModalProps
 
           <div>
             <Label>Local de atendimento</Label>
-            <Select value={form.clinic_location} onValueChange={(v) => setForm({ ...form, clinic_location: v })}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Onde a doutora atende este paciente..." />
-              </SelectTrigger>
-              <SelectContent>
-                {CLINIC_LOCATIONS.map((l) => (
-                  <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ClinicLocationPicker value={form.clinic_location} onChange={(v) => setForm({ ...form, clinic_location: v })} />
           </div>
 
           <div>

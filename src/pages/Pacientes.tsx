@@ -12,7 +12,8 @@ import {
 import { formatPhone, formatCPF } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CLINIC_LOCATIONS, clinicLocationShort } from "@/lib/clinicLocations";
+import { clinicLocationShort } from "@/lib/clinicLocations";
+import ClinicLocationPicker from "@/components/patient/ClinicLocationPicker";
 
 const Pacientes = () => {
   const navigate = useNavigate();
@@ -102,7 +103,7 @@ const Pacientes = () => {
       </div>
 
       <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="grid grid-cols-[minmax(230px,2fr)_120px_90px_minmax(150px,1fr)_105px_60px_95px_20px] gap-3 px-5 py-3 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider font-body">
+        <div className="grid grid-cols-[minmax(230px,2fr)_120px_130px_minmax(150px,1fr)_105px_60px_95px_20px] gap-3 px-5 py-3 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider font-body">
           <span>Paciente</span>
           <span>Telefone</span>
           <span>Local</span>
@@ -122,7 +123,7 @@ const Pacientes = () => {
             <div
               key={patient.id}
               onClick={() => navigate(`/pacientes/${patient.id}`)}
-              className="grid grid-cols-[minmax(230px,2fr)_120px_90px_minmax(150px,1fr)_105px_60px_95px_20px] gap-3 px-5 py-4 border-b border-border/50 items-center hover:bg-muted/30 transition-colors cursor-pointer"
+              className="grid grid-cols-[minmax(230px,2fr)_120px_130px_minmax(150px,1fr)_105px_60px_95px_20px] gap-3 px-5 py-4 border-b border-border/50 items-center hover:bg-muted/30 transition-colors cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
@@ -186,16 +187,7 @@ const Pacientes = () => {
             </div>
             <div>
               <Label>Local de atendimento</Label>
-              <Select value={newForm.clinic_location} onValueChange={(v) => setNewForm({ ...newForm, clinic_location: v })}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Onde a doutora atende este paciente..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {CLINIC_LOCATIONS.map((l) => (
-                    <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClinicLocationPicker value={newForm.clinic_location} onChange={(v) => setNewForm({ ...newForm, clinic_location: v })} />
             </div>
             <div>
               <Label>Como nos conheceu?</Label>
