@@ -1,4 +1,5 @@
-import { Calendar, Users, ClipboardList, CalendarClock, AlarmClock, Syringe } from "lucide-react";
+import { Calendar, Users, ClipboardList, CalendarClock, AlarmClock, Syringe, MapPin } from "lucide-react";
+import { clinicLocationShort } from "@/lib/clinicLocations";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -69,7 +70,7 @@ const Index = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consultations")
-        .select("patient_id, consultation_date, procedure_type, patients(name)")
+        .select("patient_id, consultation_date, procedure_type, patients(name, clinic_location)")
         .eq("visit_type", "procedimento")
         .order("consultation_date", { ascending: false });
       if (error) throw error;
@@ -88,6 +89,7 @@ const Index = () => {
           return {
             patientId: c.patient_id,
             patientName: (c as any).patients?.name ?? "Paciente",
+            location: clinicLocationShort((c as any).patients?.clinic_location),
             procedureType: c.procedure_type as string | null,
             lastDate,
             daysSince,
@@ -218,7 +220,14 @@ const Index = () => {
                   <div className="flex items-center gap-3">
                     <Syringe className="w-4 h-4 text-amber-700 shrink-0" />
                     <div>
-                      <p className="text-sm font-medium text-foreground">{p.patientName}</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {p.patientName}
+                        {p.location && (
+                          <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-amber-800 bg-amber-100/70 rounded-full px-2 py-0.5 align-middle">
+                            <MapPin className="w-3 h-3" />{p.location}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         Última sessão{p.procedureType ? ` (${p.procedureType})` : ""} em{" "}
                         {format(p.lastDate, "dd/MM/yyyy", { locale: ptBR })}
