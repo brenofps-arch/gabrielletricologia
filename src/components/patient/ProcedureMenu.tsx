@@ -7,12 +7,15 @@ import { Button } from "@/components/ui/button";
 
 export const formatBRL = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+type Mode = "avulso" | "plano";
+
 interface Props {
   onApply: (result: { lines: string; total: number }) => void;
 }
 
 const ProcedureMenu = ({ onApply }: Props) => {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [modes, setModes] = useState<Record<string, Mode>>({});
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["procedure_prices"],
@@ -30,8 +33,14 @@ const ProcedureMenu = ({ onApply }: Props) => {
   const changeQty = (id: string, delta: number) =>
     setQuantities((q) => ({ ...q, [id]: Math.max(0, (q[id] ?? 0) + delta) }));
 
+  // Procedimentos sem valor de plano só podem ser cobrados avulso.
+  const unitPrice = (i: (typeof items)[number]) => {
+    const hasPlan = i.plan_price !== null && i.plan_price !== undefined;
+    return modes[i.id] === "plano" && hasPlan ? Number(i.plan_price) : Number(i.price);
+  };
+
   const selected = items.filter((i) => (quantities[i.id] ?? 0) > 0);
-  const total = selected.reduce((sum, i) => sum + Number(i.price) * (quantities[i.id] ?? 0), 0);
+  const total = selected.reduce((sum, i) => sum + unitPrice(i) * (quantities[i.id] ?? 0), 0);
 
   const apply = () => {
     const lines = selected
@@ -65,22 +74,45 @@ const ProcedureMenu = ({ onApply }: Props) => {
         <div className="space-y-1.5">
           {items.map((i) => {
             const qty = quantities[i.id] ?? 0;
+            const hasPlan = i.plan_price !== null && i.plan_price !== undefined;
+            const mode: Mode = modes[i.id] === "plano" && hasPlan ? "plano" : "avulso";
             return (
-              <div key={i.id} className={`flex items-center gap-3 rounded-lg px-2 py-1.5 ${qty > 0 ? "bg-primary/5" : ""}`}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{i.name}</p>
-                  <p className="text-xs text-muted-foreground">{formatBRL(Number(i.price))} por sessão</p>
+              <div key={i.id} className={`rounded-lg px-2 py-2 ${qty > 0 ? "bg-primary/5" : ""}`}>
+                <div className="flex items-center gap-3">
+                  <p className="flex-1 min-w-0 text-sm font-medium text-foreground truncate">{i.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => changeQty(i.id, -1)} disabled={qty === 0}>
+                      <Minus className="w-3.5 h-3.5" />
+                    </Button>
+                    <span className="w-6 text-center text-sm font-medium">{qty}</span>
+                    <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => changeQty(i.id, 1)}>
+                      <Plus className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  <span className="w-24 text-right text-sm text-muted-foreground">{qty > 0 ? formatBRL(unitPrice(i) * qty) : ""}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => changeQty(i.id, -1)} disabled={qty === 0}>
-                    <Minus className="w-3.5 h-3.5" />
-                  </Button>
-                  <span className="w-6 text-center text-sm font-medium">{qty}</span>
-                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => changeQty(i.id, 1)}>
-                    <Plus className="w-3.5 h-3.5" />
-                  </Button>
+                <div className="flex items-center gap-2 mt-1.5">
+                  {(["avulso", "plano"] as Mode[]).map((m) => {
+                    const disabled = m === "plano" && !hasPlan;
+                    const value = m === "plano" ? (hasPlan ? Number(i.plan_price) : null) : Number(i.price);
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => setModes((cur) => ({ ...cur, [i.id]: m }))}
+                        className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
+                          mode === m
+                            ? "bg-primary text-primary-foreground border-primary font-medium"
+                            : "border-border/70 bg-muted/40 text-muted-foreground hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-muted/40 disabled:hover:text-muted-foreground"
+                        }`}
+                      >
+                        {m === "avulso" ? "Avulso" : "Plano"}: {value === null ? "—" : formatBRL(value)}
+                      </button>
+                    );
+                  })}
+                  <span className="text-xs text-muted-foreground">por sessão</span>
                 </div>
-                <span className="w-24 text-right text-sm text-muted-foreground">{qty > 0 ? formatBRL(Number(i.price) * qty) : ""}</span>
               </div>
             );
           })}

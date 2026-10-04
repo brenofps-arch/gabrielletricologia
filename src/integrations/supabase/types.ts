@@ -579,6 +579,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          plan_price: number | null
           price: number
           sort_order: number
           user_id: string
@@ -587,6 +588,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          plan_price?: number | null
           price?: number
           sort_order?: number
           user_id: string
@@ -595,6 +597,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          plan_price?: number | null
           price?: number
           sort_order?: number
           user_id?: string

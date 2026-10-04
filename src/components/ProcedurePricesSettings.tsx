@@ -36,7 +36,7 @@ const ProcedurePricesSettings = () => {
     else refresh();
   };
 
-  const updateItem = async (id: string, patch: { name?: string; price?: number }) => {
+  const updateItem = async (id: string, patch: { name?: string; price?: number; plan_price?: number | null }) => {
     const { error } = await supabase.from("procedure_prices").update(patch).eq("id", id);
     if (error) toast.error(`Erro ao salvar: ${error.message}`);
     else {
@@ -52,6 +52,30 @@ const ProcedurePricesSettings = () => {
     else refresh();
   };
 
+  const moneyInput = (
+    defaultValue: number | null,
+    onSave: (value: number | null) => void,
+    placeholder?: string
+  ) => (
+    <div className="relative w-36">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+      <Input
+        type="number"
+        min="0"
+        step="0.01"
+        defaultValue={defaultValue ?? ""}
+        placeholder={placeholder}
+        onBlur={(e) => {
+          const raw = e.target.value.trim();
+          const next = raw === "" ? null : parseFloat(raw);
+          if (next !== null && isNaN(next)) return;
+          if (next !== defaultValue) onSave(next);
+        }}
+        className="pl-9"
+      />
+    </div>
+  );
+
   return (
     <div className="bg-card rounded-xl border border-border p-6 space-y-4">
       <div className="flex items-center gap-3 mb-1">
@@ -59,8 +83,10 @@ const ProcedurePricesSettings = () => {
         <h2 className="text-lg font-heading font-semibold text-foreground">Valor das sessões</h2>
       </div>
       <p className="text-sm text-muted-foreground">
-        Cadastre cada procedimento e o valor de uma sessão. Ao gerar um orçamento, basta escolher o procedimento e a
-        quantidade de sessões. Alterar um valor aqui vale para os próximos orçamentos; os já gerados não mudam.
+        Cadastre cada procedimento com o valor de uma sessão <strong>avulsa</strong> e o valor de uma sessão
+        <strong> dentro do plano de tratamento</strong>. Ao gerar um orçamento, você escolhe o procedimento, a
+        quantidade de sessões e se cobra avulso ou no plano. Alterar um valor aqui vale para os próximos orçamentos;
+        os já gerados não mudam.
       </p>
 
       {isLoading ? (
@@ -70,7 +96,8 @@ const ProcedurePricesSettings = () => {
           {items.length > 0 && (
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground px-1">
               <span className="flex-1">Procedimento</span>
-              <span className="w-36">Valor por sessão</span>
+              <span className="w-36">Valor avulso</span>
+              <span className="w-36">Valor no plano</span>
               <span className="w-8" />
             </div>
           )}
@@ -84,20 +111,8 @@ const ProcedurePricesSettings = () => {
                 }}
                 className="flex-1"
               />
-              <div className="relative w-36">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  defaultValue={Number(i.price)}
-                  onBlur={(e) => {
-                    const v = parseFloat(e.target.value);
-                    if (!isNaN(v) && v !== Number(i.price)) updateItem(i.id, { price: v });
-                  }}
-                  className="pl-9"
-                />
-              </div>
+              {moneyInput(Number(i.price), (v) => v !== null && updateItem(i.id, { price: v }))}
+              {moneyInput(i.plan_price === null ? null : Number(i.plan_price), (v) => updateItem(i.id, { plan_price: v }), "—")}
               <button
                 type="button"
                 onClick={() => removeItem(i.id, i.name)}
@@ -111,6 +126,7 @@ const ProcedurePricesSettings = () => {
           <Button type="button" variant="outline" size="sm" className="gap-1.5 mt-1" onClick={addItem}>
             <Plus className="w-4 h-4" /> Adicionar procedimento
           </Button>
+          <p className="text-xs text-muted-foreground">Deixe o valor no plano em branco se o procedimento não tem preço de plano.</p>
         </div>
       )}
     </div>
