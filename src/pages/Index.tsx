@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, formatDistanceToNow, startOfMonth, endOfMonth, addDays, differenceInCalendarDays, isSameDay } from "date-fns";
+import { format, formatDistanceToNow, startOfMonth, endOfMonth, addDays, startOfDay, differenceInCalendarDays, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { findPatientBySummary } from "@/lib/patientMatch";
 
@@ -14,6 +14,7 @@ interface GEvent {
   start: { dateTime?: string; date?: string };
   end: { dateTime?: string; date?: string };
   description?: string;
+  status?: string;
 }
 
 // Janela de alerta: sessoes de procedimento sao mensais, entao avisamos a
@@ -122,6 +123,23 @@ const Index = () => {
   });
   const calendarConnected = calendarResult?.connected ?? true;
 
+  // Eventos futuros (até 120 dias) para saber quem já tem retorno marcado.
+  const { data: futureEvents = [] } = useQuery({
+    queryKey: ["dashboard-gcal-future", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return [] as GEvent[];
+      const timeMin = startOfDay(new Date()).toISOString();
+      const timeMax = addDays(new Date(), 120).toISOString();
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      return (json.events ?? []) as GEvent[];
+    },
+  });
+
   const eventStart = (e: GEvent) => {
     if (e.start.dateTime) return new Date(e.start.dateTime);
     return new Date(`${e.start.date}T00:00:00`);
@@ -134,6 +152,21 @@ const Index = () => {
   // Os contadores só consideram eventos que batem com um paciente cadastrado
   // (compromissos pessoais ficam de fora).
   const isPatientEvent = (e: GEvent) => !!findPatientBySummary(e.summary, patientList);
+
+  // Pacientes que já têm algum compromisso futuro na agenda.
+  const nextScheduled = new Map<string, Date>();
+  for (const e of futureEvents) {
+    if (e.status === "cancelled") continue;
+    const p = findPatientBySummary(e.summary, patientList);
+    if (!p) continue;
+    const start = eventStart(e);
+    const cur = nextScheduled.get(p.id);
+    if (!cur || start < cur) nextScheduled.set(p.id, start);
+  }
+  // Quem já tem horário marcado continua na lista, mas vai para o fim, com aviso.
+  const pendingAlerts = procedureAlerts
+    .map((p) => ({ ...p, scheduledFor: nextScheduled.get(p.patientId) ?? null }))
+    .sort((a, b) => Number(!!a.scheduledFor) - Number(!!b.scheduledFor));
 
   const now = new Date();
   const weekLimit = addDays(now, 7);
@@ -200,7 +233,7 @@ const Index = () => {
         <p className="text-muted-foreground font-body mt-1">Aqui está o resumo do seu dia.</p>
       </div>
 
-      {procedureAlerts.length > 0 && (
+      {pendingAlerts.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <AlarmClock className="w-5 h-5 text-amber-700" />
@@ -209,7 +242,7 @@ const Index = () => {
             </h2>
           </div>
           <div className="space-y-2">
-            {procedureAlerts.map((p) => {
+            {pendingAlerts.map((p) => {
               const overdue = p.daysSince >= PROCEDURE_ALERT_OVERDUE_DAYS;
               return (
                 <button
@@ -234,13 +267,19 @@ const Index = () => {
                       </p>
                     </div>
                   </div>
-                  <span
-                    className={`text-xs font-medium px-3 py-1 rounded-full shrink-0 ${
-                      overdue ? "bg-destructive/10 text-destructive" : "bg-amber-200/60 text-amber-800"
-                    }`}
-                  >
-                    {overdue ? `Atrasado há ${p.daysSince - 30} dia(s)` : `Faltam ${30 - p.daysSince} dia(s)`}
-                  </span>
+                  {p.scheduledFor ? (
+                    <span className="text-xs font-medium px-3 py-1 rounded-full shrink-0 bg-mint/40 text-secondary-foreground">
+                      Já agendado para {format(p.scheduledFor, "dd/MM 'às' HH:mm", { locale: ptBR })}
+                    </span>
+                  ) : (
+                    <span
+                      className={`text-xs font-medium px-3 py-1 rounded-full shrink-0 ${
+                        overdue ? "bg-destructive/10 text-destructive" : "bg-amber-200/60 text-amber-800"
+                      }`}
+                    >
+                      {overdue ? `Atrasado há ${p.daysSince - 30} dia(s)` : `Faltam ${30 - p.daysSince} dia(s)`}
+                    </span>
+                  )}
                 </button>
               );
             })}
