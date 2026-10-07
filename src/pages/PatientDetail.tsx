@@ -1,3 +1,4 @@
+import { wasAttended } from "@/lib/attendance";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -101,7 +102,7 @@ const PatientDetail = () => {
   const medicationsCount = prescriptionRows.length + consultations.filter((c) => /[\p{L}\p{N}]/u.test(c.prescription_notes ?? "")).length;
   const examsCount = labExamRows.length + consultations.filter((c) => /[\p{L}\p{N}]/u.test(c.exams_brought ?? "")).length;
 
-  const procedureSessionsCount = consultations.filter((c) => c.visit_type === "procedimento").length;
+  const procedureSessionsCount = consultations.filter((c) => c.visit_type === "procedimento" && wasAttended(c)).length;
 
   const saveNotes = async () => {
     const { error } = await supabase.from("patients").update({ important_notes: notesValue }).eq("id", id!);
@@ -384,7 +385,7 @@ const PatientDetail = () => {
       {/* Tabs */}
       <Tabs defaultValue="timeline" className="w-full">
         <TabsList className="bg-muted/50">
-          <TabsTrigger value="timeline">Histórico de Consultas ({consultations.length})</TabsTrigger>
+          <TabsTrigger value="timeline">Histórico de Consultas ({consultations.filter(wasAttended).length})</TabsTrigger>
           <TabsTrigger value="medications">Farmacoterapia ({medicationsCount})</TabsTrigger>
           <TabsTrigger value="exams">Exames Laboratoriais ({examsCount})</TabsTrigger>
           <TabsTrigger value="quotes">Orçamentos</TabsTrigger>

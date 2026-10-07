@@ -37,11 +37,12 @@ const Pacientes = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consultations")
-        .select("patient_id, visit_type, consultation_date");
+        .select("patient_id, visit_type, consultation_date, attendance_status");
       if (error) throw error;
       const procedures: Record<string, number> = {};
       const lastVisit: Record<string, string> = {};
       for (const c of data ?? []) {
+        if (c.attendance_status) continue;
         if (c.visit_type === "procedimento") procedures[c.patient_id] = (procedures[c.patient_id] || 0) + 1;
         if (!lastVisit[c.patient_id] || c.consultation_date > lastVisit[c.patient_id]) lastVisit[c.patient_id] = c.consultation_date;
       }

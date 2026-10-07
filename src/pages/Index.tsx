@@ -73,6 +73,7 @@ const Index = () => {
         .from("consultations")
         .select("patient_id, consultation_date, procedure_type, patients(name, clinic_location)")
         .eq("visit_type", "procedimento")
+        .is("attendance_status", null)
         .order("consultation_date", { ascending: false });
       if (error) throw error;
 

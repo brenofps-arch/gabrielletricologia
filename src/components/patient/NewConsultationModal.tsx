@@ -1,3 +1,4 @@
+import { ATTENDANCE_OPTIONS, wasAttended } from "@/lib/attendance";
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -107,6 +108,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
 
   const [form, setForm] = useState({
     consultation_date: new Date().toISOString().slice(0, 10),
+    attendance_status: "",
     chief_complaint: "",
     physical_exam_notes: "",
     diagnosis: "",
@@ -177,6 +179,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
           consultation_date: consultation.consultation_date
             ? new Date(consultation.consultation_date).toISOString().slice(0, 10)
             : new Date().toISOString().slice(0, 10),
+          attendance_status: consultation.attendance_status || "",
           chief_complaint: consultation.chief_complaint || "",
           physical_exam_notes: consultation.physical_exam || "",
           diagnosis: consultation.diagnosis || "",
@@ -193,6 +196,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
       } else {
         setForm({
           consultation_date: new Date().toISOString().slice(0, 10),
+          attendance_status: "",
           chief_complaint: "",
           physical_exam_notes: "",
           diagnosis: "",
@@ -217,7 +221,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
   const computeProcedureNumber = (type: string) => {
     if (!type) return "";
     const count = previousConsultations.filter(
-      (c) => c.visit_type === "procedimento" && c.procedure_type === type && c.id !== consultation?.id
+      (c) => c.visit_type === "procedimento" && wasAttended(c) && c.procedure_type === type && c.id !== consultation?.id
     ).length;
     return String(count + 1);
   };
@@ -256,6 +260,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
     if (viewMode === "retorno") {
       payload = {
         consultation_date: saveIsoDate,
+        attendance_status: form.attendance_status || null,
         visit_type: "retorno",
         chief_complaint: form.chief_complaint || null,
         physical_exam: form.physical_exam_notes || null,
@@ -271,6 +276,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
     } else if (viewMode === "procedimento") {
       payload = {
         consultation_date: saveIsoDate,
+        attendance_status: form.attendance_status || null,
         visit_type: "procedimento",
         procedure_type: form.procedure_type || null,
         procedure_number: form.procedure_number ? parseInt(form.procedure_number, 10) : null,
@@ -328,6 +334,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
 
       payload = {
         consultation_date: saveIsoDate,
+        attendance_status: form.attendance_status || null,
         chief_complaint: form.chief_complaint || null,
         physical_exam: fullPhysicalExam || null,
         diagnosis: form.diagnosis || null,
@@ -500,6 +507,30 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
                 onChange={(e) => setForm({ ...form, consultation_date: e.target.value })}
                 className="w-44 h-8 text-xs bg-background"
               />
+            </div>
+
+            {/* Situação do atendimento */}
+            <div className="flex items-center justify-between gap-3 flex-wrap bg-muted/30 border border-border/80 p-3 rounded-xl">
+              <Label className="text-xs font-semibold text-foreground">Situação:</Label>
+              <div className="flex items-center gap-1.5">
+                {ATTENDANCE_OPTIONS.map((o) => {
+                  const active = form.attendance_status === o.value;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => setForm({ ...form, attendance_status: active ? "" : o.value })}
+                      className={`text-xs px-3 py-1 rounded-md border transition-colors ${
+                        active
+                          ? "bg-red-100 text-red-700 border-red-300 font-medium"
+                          : "border-border/70 bg-background text-muted-foreground hover:bg-red-50 hover:text-red-700"
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Resumo rápido da Anamnese para consulta durante o atendimento */}

@@ -5,6 +5,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import PhotoLightbox from "./PhotoLightbox";
+import { attendanceLabel } from "@/lib/attendance";
 
 const CONSULTATION_PHOTOS_BUCKET = "consultation-photos";
 
@@ -123,7 +124,7 @@ const ConsultationTimeline = ({ consultations, patientId, onNewConsultation, onE
       {consultations.map((c) => (
         <div key={c.id} className="relative pl-8 pb-6 border-l-2 border-border last:border-l-0 last:pb-0">
           <div className="absolute left-[-9px] top-0 w-4 h-4 rounded-full bg-primary border-2 border-card" />
-          <div className="bg-card rounded-xl border border-border p-4 shadow-sm hover:border-border/80 transition-colors">
+          <div className={`rounded-xl border p-4 shadow-sm transition-colors ${c.attendance_status ? "bg-red-50/60 border-red-200 hover:border-red-300" : "bg-card border-border hover:border-border/80"}`}>
             {/* Header com Data e Ações de Edição */}
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-3 pb-2 border-b border-border/50">
               <div className="flex items-center gap-2 font-medium text-foreground">
@@ -132,6 +133,11 @@ const ConsultationTimeline = ({ consultations, patientId, onNewConsultation, onE
                   Consulta de {new Date(c.consultation_date).toLocaleDateString("pt-BR")}
                 </span>
                 {visitBadge(c.visit_type)}
+                {c.attendance_status && (
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700 uppercase">
+                    {attendanceLabel(c.attendance_status)}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 {onEditConsultation && (

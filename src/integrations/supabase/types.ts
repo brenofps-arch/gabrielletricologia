@@ -123,6 +123,7 @@ export type Database = {
       }
       consultations: {
         Row: {
+          attendance_status: string | null
           chief_complaint: string | null
           consultation_date: string
           created_at: string
@@ -142,6 +143,7 @@ export type Database = {
           visit_type: string | null
         }
         Insert: {
+          attendance_status?: string | null
           chief_complaint?: string | null
           consultation_date?: string
           created_at?: string
@@ -161,6 +163,7 @@ export type Database = {
           visit_type?: string | null
         }
         Update: {
+          attendance_status?: string | null
           chief_complaint?: string | null
           consultation_date?: string
           created_at?: string

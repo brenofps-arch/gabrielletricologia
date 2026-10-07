@@ -1,3 +1,4 @@
+import { attendanceLabel } from "@/lib/attendance";
 import jsPDF from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
 import logoBase64 from "@/lib/logoBase64";
@@ -291,7 +292,7 @@ export async function buildMedicalRecordPDF(patientId: string, onProgress?: (mes
   y = 44;
 
   // ── Dados do paciente ────────────────────────────────────────────────
-  const procedureCount = consultations.filter((c) => c.visit_type === "procedimento").length;
+  const procedureCount = consultations.filter((c) => c.visit_type === "procedimento" && !c.attendance_status).length;
   const info: [string, string][] = [
     ["CPF", patient.cpf || "—"],
     ["Nascimento", patient.birth_date ? `${formatBirth(patient.birth_date)} (${ageFrom(patient.birth_date)} anos)` : "—"],
@@ -352,6 +353,7 @@ export async function buildMedicalRecordPDF(patientId: string, onProgress?: (mes
           c.procedure_number ? `  ·  Sessão nº ${c.procedure_number}` : ""
         }`;
       }
+      if (c.attendance_status) heading += `  ·  ${(attendanceLabel(c.attendance_status) ?? "").toUpperCase()}`;
 
       ensure(34);
       y += 2;
