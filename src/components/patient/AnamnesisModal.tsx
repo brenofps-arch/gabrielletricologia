@@ -1,4 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -422,16 +425,23 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
     return new Date().toISOString().slice(0, 10);
   });
 
+  const [confirmClose, setConfirmClose] = useState(false);
+  // Foto do formulário ao abrir, para saber se há algo não salvo.
+  const baseline = useRef("");
+
   useEffect(() => {
     if (open) {
-      setForm({ ...emptyAnamnesis, ...(initialData || {}) });
-      if (initialDate) {
-        setCustomDate(new Date(initialDate).toISOString().slice(0, 10));
-      } else {
-        setCustomDate(new Date().toISOString().slice(0, 10));
-      }
+      const nextForm = { ...emptyAnamnesis, ...(initialData || {}) };
+      const nextDate = initialDate ? new Date(initialDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+      setForm(nextForm);
+      setCustomDate(nextDate);
+      baseline.current = JSON.stringify([nextForm, nextDate]);
+      setConfirmClose(false);
     }
   }, [open, initialData, initialDate]);
+
+  const isDirty = JSON.stringify([form, customDate]) !== baseline.current;
+  const requestClose = () => (isDirty ? setConfirmClose(true) : onOpenChange(false));
 
   const handleSave = async () => {
     setSaving(true);
@@ -449,7 +459,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : requestClose())}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-xl">Anamnese do Paciente</DialogTitle>
@@ -461,7 +471,7 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
         <AnamnesisFields value={form} onChange={setForm} date={customDate} onDateChange={setCustomDate} />
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={requestClose}>
             Cancelar
           </Button>
           <Button onClick={handleSave} disabled={saving} className="gap-2">
@@ -469,6 +479,38 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deseja salvar antes de sair?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Há informações preenchidas que ainda não foram salvas. Se sair sem salvar, elas serão perdidas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={() => {
+                setConfirmClose(false);
+                onOpenChange(false);
+              }}
+            >
+              Sair sem salvar
+            </Button>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmClose(false);
+                handleSave();
+              }}
+            >
+              Salvar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };

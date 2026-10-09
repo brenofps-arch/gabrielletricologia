@@ -1,6 +1,9 @@
 import { ATTENDANCE_OPTIONS, wasAttended } from "@/lib/attendance";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,6 +130,9 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const queryClient = useQueryClient();
+  const [confirmClose, setConfirmClose] = useState(false);
+  // Foto do formulário ao abrir, para saber se há algo não salvo.
+  const baseline = useRef("");
 
   const { data: existingPhotos = [] } = useQuery({
     queryKey: ["consultation_photos", consultation?.id],
@@ -171,11 +177,14 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
 
   useEffect(() => {
     if (open) {
-      setAnamnesisForm({ ...emptyAnamnesis, ...(anamnesis || {}) });
+      const nextAnamnesis = { ...emptyAnamnesis, ...(anamnesis || {}) };
+      let nextForm: typeof form;
+      setAnamnesisForm(nextAnamnesis);
+      setConfirmClose(false);
       setPendingPhotos([]);
       setLightboxIndex(null);
       if (consultation) {
-        setForm({
+        nextForm = {
           consultation_date: consultation.consultation_date
             ? new Date(consultation.consultation_date).toISOString().slice(0, 10)
             : new Date().toISOString().slice(0, 10),
@@ -190,11 +199,13 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
           procedure_type: consultation.procedure_type || "",
           procedure_number: consultation.procedure_number != null ? String(consultation.procedure_number) : "",
           procedure_medications: consultation.procedure_medications || "",
-        });
+        };
+        setForm(nextForm);
         setExam(emptyTrichoscopy);
         setViewMode(getVisitMode(consultation));
+        baseline.current = JSON.stringify([nextForm, emptyTrichoscopy, nextAnamnesis]);
       } else {
-        setForm({
+        nextForm = {
           consultation_date: new Date().toISOString().slice(0, 10),
           attendance_status: "",
           chief_complaint: "",
@@ -207,9 +218,11 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
           procedure_type: "",
           procedure_number: "",
           procedure_medications: "",
-        });
+        };
+        setForm(nextForm);
         setExam(emptyTrichoscopy);
         setViewMode(previousConsultations.length === 0 ? "full" : "chooser");
+        baseline.current = JSON.stringify([nextForm, emptyTrichoscopy, nextAnamnesis]);
       }
     }
   }, [open, consultation]);
@@ -229,6 +242,11 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
   const selectProcedureType = (type: string) => {
     setForm((f) => ({ ...f, procedure_type: type, procedure_number: computeProcedureNumber(type) }));
   };
+
+  const isDirty =
+    viewMode !== "chooser" &&
+    (pendingPhotos.length > 0 || JSON.stringify([form, exam, anamnesisForm]) !== baseline.current);
+  const requestClose = () => (isDirty ? setConfirmClose(true) : onOpenChange(false));
 
   const combined = !!combineAnamnesis && !consultation && viewMode === "full";
 
@@ -452,7 +470,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : requestClose())}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-xl flex items-center gap-1.5">
@@ -955,7 +973,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={requestClose}>Cancelar</Button>
           {viewMode !== "chooser" && (
             <Button onClick={handleSubmit} disabled={loading}>
               {loading ? "Salvando..." : consultation ? "Salvar Alterações" : combined ? "Salvar Anamnese e Consulta" : "Salvar Evolução"}
@@ -963,6 +981,39 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
           )}
         </DialogFooter>
       </DialogContent>
+
+
+      <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deseja salvar antes de sair?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Há informações preenchidas que ainda não foram salvas. Se sair sem salvar, elas serão perdidas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={() => {
+                setConfirmClose(false);
+                onOpenChange(false);
+              }}
+            >
+              Sair sem salvar
+            </Button>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmClose(false);
+                handleSubmit();
+              }}
+            >
+              Salvar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <PhotoLightbox
         photos={existingPhotos}
