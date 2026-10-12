@@ -99,6 +99,34 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
+  const { data: quoteRows = [] } = useQuery({
+    queryKey: ["quotes", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quotes")
+        .select("*, quote_items(*)")
+        .eq("patient_id", id!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: paymentRows = [] } = useQuery({
+    queryKey: ["payments", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("patient_id", id!)
+        .order("payment_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
   const medicationsCount = prescriptionRows.length + consultations.filter((c) => /[\p{L}\p{N}]/u.test(c.prescription_notes ?? "")).length;
   const examsCount = labExamRows.length + consultations.filter((c) => /[\p{L}\p{N}]/u.test(c.exams_brought ?? "")).length;
 
@@ -388,8 +416,8 @@ const PatientDetail = () => {
           <TabsTrigger value="timeline">Histórico de Consultas ({consultations.filter(wasAttended).length})</TabsTrigger>
           <TabsTrigger value="medications">Farmacoterapia ({medicationsCount})</TabsTrigger>
           <TabsTrigger value="exams">Exames Laboratoriais ({examsCount})</TabsTrigger>
-          <TabsTrigger value="quotes">Orçamentos</TabsTrigger>
-          <TabsTrigger value="payments">Pagamentos</TabsTrigger>
+          <TabsTrigger value="quotes">Orçamentos ({quoteRows.length})</TabsTrigger>
+          <TabsTrigger value="payments">Pagamentos ({paymentRows.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="timeline" className="mt-4">
           <ConsultationTimeline
