@@ -56,15 +56,22 @@ Deno.serve(async (req) => {
           access_token: refreshed.access_token,
           expires_at: new Date(Date.now() + refreshed.expires_in * 1000).toISOString(),
         }).eq("user_id", user.id);
-      } else {
-        // Refresh token inválido/revogado (ex.: credenciais OAuth trocadas).
-        // Remove a conexão antiga e pede nova conexão.
+      } else if (refreshed.error === "invalid_grant" || refreshed.error === "invalid_client") {
+        // Autorização revogada/expirada ou credenciais OAuth trocadas: só nesse
+        // caso a conexão é apagada e uma nova é pedida.
         await adminClient.from("google_calendar_tokens").delete().eq("user_id", user.id);
         return new Response(JSON.stringify({
           connected: false,
           needsReconnect: true,
           events: [],
         }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } else {
+        // Falha temporária do Google: mantém a conexão e deixa tentar de novo.
+        console.error("Falha temporária ao renovar token do Google:", refreshed);
+        return new Response(JSON.stringify({ error: "Google Calendar indisponível no momento. Tente novamente." }), {
+          status: 503,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

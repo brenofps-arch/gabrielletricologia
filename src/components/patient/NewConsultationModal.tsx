@@ -1,5 +1,9 @@
-import { useState, useEffect } from "react";
+import { ATTENDANCE_OPTIONS, wasAttended } from "@/lib/attendance";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { AnamnesisData, anamnesisLabels } from "./AnamnesisModal";
+import { AnamnesisData, anamnesisLabels, emptyAnamnesis, AnamnesisFields, saveAnamnesis } from "./AnamnesisModal";
 import PhotoLightbox from "./PhotoLightbox";
 import {
   ChevronDown, ChevronUp, ClipboardList, Calendar, Microscope, Activity, FlaskConical,
@@ -24,6 +28,8 @@ interface Props {
   consultation?: Tables<"consultations"> | null;
   previousConsultations?: Tables<"consultations">[];
   anamnesis?: AnamnesisData | null;
+  // Primeira consulta: exibe a anamnese logo acima da evolução e salva as duas juntas
+  combineAnamnesis?: boolean;
   onSuccess: () => void;
 }
 
@@ -84,7 +90,7 @@ const trichoscopyOptions: Record<keyof TrichoscopyExam, string[]> = {
   anisotrichosis: ["Sim (presente)", "Não (ausente)"],
   vellus: ["Sim (presente)", "Não (ausente)"],
   hair_morphology: ["Sem alterações", "Tricoptilose (pontas duplas)", "Tricorrexe nodosa", "Fios em ponto de exclamação", "Fios quebradiços", "Cabelos em tufo"],
-  perifollicular_sign: ["Ausente / Normal", "Eritema perifolicular", "Descamação peripilar (colarete)", "Hiperqueratose folicular", "Halo branco peripilar"],
+  perifollicular_sign: ["Ausente / Normal", "Eritema perifolicular", "Descamação peripilar (colarete)", "Descamação solta", "Hiperqueratose folicular", "Halo branco peripilar"],
   follicular_sign: ["Sem alterações", "Pontos amarelos (Yellow dots)", "Pontos pretos (Black dots)", "Pontos brancos", "Pontos vermelhos", "Halo marrom"],
   vessels: ["Padrão normal (alças)", "Arboriformes", "Ectásicos / Tortuosos", "Pontilhados", "Ausentes"],
   pull_test: ["Negativo (normal)", "Positivo difuso", "Positivo em vértex", "Positivo frontal", "Positivo parietal", "Fios anágenos", "Fios telógenos"],
@@ -97,7 +103,7 @@ const getVisitMode = (c: Tables<"consultations"> | null | undefined): ViewMode =
   return "full";
 };
 
-const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, previousConsultations = [], anamnesis, onSuccess }: Props) => {
+const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, previousConsultations = [], anamnesis, combineAnamnesis, onSuccess }: Props) => {
   const [loading, setLoading] = useState(false);
   const [showAnamnesisSummary, setShowAnamnesisSummary] = useState(false);
   const [showTrichoscopyFields, setShowTrichoscopyFields] = useState(true);
@@ -105,6 +111,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
 
   const [form, setForm] = useState({
     consultation_date: new Date().toISOString().slice(0, 10),
+    attendance_status: "",
     chief_complaint: "",
     physical_exam_notes: "",
     diagnosis: "",
@@ -118,10 +125,14 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
   });
 
   const [exam, setExam] = useState<TrichoscopyExam>(emptyTrichoscopy);
+  const [anamnesisForm, setAnamnesisForm] = useState<AnamnesisData>(emptyAnamnesis);
   const [pendingPhotos, setPendingPhotos] = useState<{ file: File; previewUrl: string }[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const queryClient = useQueryClient();
+  const [confirmClose, setConfirmClose] = useState(false);
+  // Foto do formulário ao abrir, para saber se há algo não salvo.
+  const baseline = useRef("");
 
   const { data: existingPhotos = [] } = useQuery({
     queryKey: ["consultation_photos", consultation?.id],
@@ -166,13 +177,18 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
 
   useEffect(() => {
     if (open) {
+      const nextAnamnesis = { ...emptyAnamnesis, ...(anamnesis || {}) };
+      let nextForm: typeof form;
+      setAnamnesisForm(nextAnamnesis);
+      setConfirmClose(false);
       setPendingPhotos([]);
       setLightboxIndex(null);
       if (consultation) {
-        setForm({
+        nextForm = {
           consultation_date: consultation.consultation_date
             ? new Date(consultation.consultation_date).toISOString().slice(0, 10)
             : new Date().toISOString().slice(0, 10),
+          attendance_status: consultation.attendance_status || "",
           chief_complaint: consultation.chief_complaint || "",
           physical_exam_notes: consultation.physical_exam || "",
           diagnosis: consultation.diagnosis || "",
@@ -183,12 +199,15 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
           procedure_type: consultation.procedure_type || "",
           procedure_number: consultation.procedure_number != null ? String(consultation.procedure_number) : "",
           procedure_medications: consultation.procedure_medications || "",
-        });
+        };
+        setForm(nextForm);
         setExam(emptyTrichoscopy);
         setViewMode(getVisitMode(consultation));
+        baseline.current = JSON.stringify([nextForm, emptyTrichoscopy, nextAnamnesis]);
       } else {
-        setForm({
+        nextForm = {
           consultation_date: new Date().toISOString().slice(0, 10),
+          attendance_status: "",
           chief_complaint: "",
           physical_exam_notes: "",
           diagnosis: "",
@@ -199,9 +218,11 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
           procedure_type: "",
           procedure_number: "",
           procedure_medications: "",
-        });
+        };
+        setForm(nextForm);
         setExam(emptyTrichoscopy);
         setViewMode(previousConsultations.length === 0 ? "full" : "chooser");
+        baseline.current = JSON.stringify([nextForm, emptyTrichoscopy, nextAnamnesis]);
       }
     }
   }, [open, consultation]);
@@ -213,7 +234,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
   const computeProcedureNumber = (type: string) => {
     if (!type) return "";
     const count = previousConsultations.filter(
-      (c) => c.visit_type === "procedimento" && c.procedure_type === type && c.id !== consultation?.id
+      (c) => c.visit_type === "procedimento" && wasAttended(c) && c.procedure_type === type && c.id !== consultation?.id
     ).length;
     return String(count + 1);
   };
@@ -221,6 +242,13 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
   const selectProcedureType = (type: string) => {
     setForm((f) => ({ ...f, procedure_type: type, procedure_number: computeProcedureNumber(type) }));
   };
+
+  const isDirty =
+    viewMode !== "chooser" &&
+    (pendingPhotos.length > 0 || JSON.stringify([form, exam, anamnesisForm]) !== baseline.current);
+  const requestClose = () => (isDirty ? setConfirmClose(true) : onOpenChange(false));
+
+  const combined = !!combineAnamnesis && !consultation && viewMode === "full";
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -235,11 +263,22 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
       ? new Date(`${form.consultation_date}T12:00:00Z`).toISOString()
       : new Date().toISOString();
 
+    if (combined) {
+      const anamnesisError = await saveAnamnesis(patientId, anamnesisForm, form.consultation_date);
+      if (anamnesisError) {
+        console.error("Erro ao salvar anamnese:", anamnesisError);
+        toast.error(`Erro ao salvar a anamnese: ${anamnesisError.message}`);
+        setLoading(false);
+        return;
+      }
+    }
+
     let payload: Record<string, unknown>;
 
     if (viewMode === "retorno") {
       payload = {
         consultation_date: saveIsoDate,
+        attendance_status: form.attendance_status || null,
         visit_type: "retorno",
         chief_complaint: form.chief_complaint || null,
         physical_exam: form.physical_exam_notes || null,
@@ -255,6 +294,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
     } else if (viewMode === "procedimento") {
       payload = {
         consultation_date: saveIsoDate,
+        attendance_status: form.attendance_status || null,
         visit_type: "procedimento",
         procedure_type: form.procedure_type || null,
         procedure_number: form.procedure_number ? parseInt(form.procedure_number, 10) : null,
@@ -276,6 +316,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
       if (exam.macro_midline_widening) macroLines.push(`• Alargamento de linha média: ${exam.macro_midline_widening}`);
       if (exam.macro_vertex_rarefaction) macroLines.push(`• Rarefação em vértex: ${exam.macro_vertex_rarefaction}`);
       if (exam.macro_prominent_recession) macroLines.push(`• Entradas proeminentes: ${exam.macro_prominent_recession}`);
+      if (exam.pull_test) macroLines.push(`• PULL TEST: ${exam.pull_test}`);
 
       const examLines: string[] = [];
       if (macroLines.length > 0) {
@@ -298,7 +339,6 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
       if (exam.perifollicular_sign) examLines.push(`• Sinal perifolicular: ${exam.perifollicular_sign}`);
       if (exam.follicular_sign) examLines.push(`• Sinal folicular: ${exam.follicular_sign}`);
       if (exam.vessels) examLines.push(`• Vasos: ${exam.vessels}`);
-      if (exam.pull_test) examLines.push(`• PULL TEST: ${exam.pull_test}`);
 
       let fullPhysicalExam = "";
       if (examLines.length > 0) {
@@ -312,6 +352,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
 
       payload = {
         consultation_date: saveIsoDate,
+        attendance_status: form.attendance_status || null,
         chief_complaint: form.chief_complaint || null,
         physical_exam: fullPhysicalExam || null,
         diagnosis: form.diagnosis || null,
@@ -375,9 +416,12 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
     }
 
     if (saveError) {
-      toast.error("Erro ao salvar consulta.");
+      console.error("Erro ao salvar consulta:", saveError);
+      toast.error(`Erro ao salvar consulta: ${saveError.message}`);
     } else {
-      toast.success(consultation ? "Consulta atualizada com sucesso!" : "Consulta registrada com sucesso!");
+      toast.success(
+        consultation ? "Consulta atualizada com sucesso!" : combined ? "Anamnese e consulta registradas com sucesso!" : "Consulta registrada com sucesso!"
+      );
       onSuccess();
       onOpenChange(false);
     }
@@ -418,6 +462,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
       if (viewMode === "procedimento") return "Editar Procedimento";
       return "Editar Evolução Clínica";
     }
+    if (combined) return "Primeira Consulta";
     if (viewMode === "chooser") return "Nova Evolução Clínica";
     if (viewMode === "retorno") return "Registrar Retorno";
     if (viewMode === "procedimento") return "Registrar Procedimento";
@@ -425,11 +470,11 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : requestClose())}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-xl flex items-center gap-1.5">
-            {!consultation && viewMode !== "chooser" && (
+            {!consultation && !combineAnamnesis && viewMode !== "chooser" && (
               <Button
                 type="button"
                 variant="ghost"
@@ -482,8 +527,32 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
               />
             </div>
 
+            {/* Situação do atendimento */}
+            <div className="flex items-center justify-between gap-3 flex-wrap bg-muted/30 border border-border/80 p-3 rounded-xl">
+              <Label className="text-xs font-semibold text-foreground">Situação:</Label>
+              <div className="flex items-center gap-1.5">
+                {ATTENDANCE_OPTIONS.map((o) => {
+                  const active = form.attendance_status === o.value;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => setForm({ ...form, attendance_status: active ? "" : o.value })}
+                      className={`text-xs px-3 py-1 rounded-md border transition-colors ${
+                        active
+                          ? "bg-red-100 text-red-700 border-red-300 font-medium"
+                          : "border-border/70 bg-background text-muted-foreground hover:bg-red-50 hover:text-red-700"
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Resumo rápido da Anamnese para consulta durante o atendimento */}
-            {anamnesis && Object.values(anamnesis).some((v) => typeof v === "string" && v.trim().length > 0) && (
+            {!combined && anamnesis && Object.values(anamnesis).some((v) => typeof v === "string" && v.trim().length > 0) && (
               <div className="bg-muted/40 border border-border rounded-xl p-3 text-xs">
                 <button
                   type="button"
@@ -512,15 +581,28 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
               </div>
             )}
 
+            {combined && (
+              <>
+                <div className="pt-2">
+                  <h3 className="font-heading text-lg font-semibold text-foreground">Anamnese</h3>
+                  <p className="text-xs text-muted-foreground">Preencha a anamnese e, logo abaixo, os dados da primeira consulta.</p>
+                </div>
+                <AnamnesisFields value={anamnesisForm} onChange={setAnamnesisForm} />
+                <div className="border-t border-border pt-4">
+                  <h3 className="font-heading text-lg font-semibold text-foreground">Primeira Consulta</h3>
+                </div>
+              </>
+            )}
+
             {viewMode === "full" && (
               <div className="space-y-5">
-                {/* Queixa Principal */}
+                {/* Histórico da Doença Atual */}
                 <div>
-                  <Label className="font-body text-sm font-semibold">Queixa Principal</Label>
+                  <Label className="font-body text-sm font-semibold">Histórico da Doença Atual</Label>
                   <Textarea
                     value={form.chief_complaint}
                     onChange={(e) => setForm({ ...form, chief_complaint: e.target.value })}
-                    placeholder="Descreva a queixa do paciente nesta consulta..."
+                    placeholder="Descreva a queixa e o histórico da doença atual do paciente nesta consulta..."
                     className="mt-1 min-h-[70px]"
                   />
                 </div>
@@ -538,6 +620,35 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
                     {renderTrichoscopyInput("macro_midline_widening", "Alargamento de linha média?", "Sim / Não")}
                     {renderTrichoscopyInput("macro_vertex_rarefaction", "Rarefação em vértex?", "Sim / Não")}
                     {renderTrichoscopyInput("macro_prominent_recession", "Entradas proeminentes?", "Sim / Não")}
+                  </div>
+
+                  {/* PULL TEST em destaque */}
+                  <div className="bg-primary/5 p-3 rounded-lg border border-primary/30 space-y-2">
+                    <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5" /> PULL TEST
+                    </span>
+                    <div className="flex flex-wrap gap-1 pb-1">
+                      {trichoscopyOptions.pull_test.map((opt) => (
+                        <button
+                          type="button"
+                          key={opt}
+                          onClick={() => setExamField("pull_test", opt)}
+                          className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors ${
+                            exam.pull_test === opt
+                              ? "bg-primary text-primary-foreground border-primary font-medium"
+                              : "border-border/70 bg-muted/40 hover:bg-primary/10 hover:text-primary hover:border-primary/40 text-muted-foreground"
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    <Input
+                      value={exam.pull_test}
+                      onChange={(e) => setExamField("pull_test", e.target.value)}
+                      placeholder="Ex: Negativo / Positivo difuso (3 fios telógenos)..."
+                      className="h-8 text-xs bg-background"
+                    />
                   </div>
                 </div>
 
@@ -578,35 +689,6 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
                       {renderTrichoscopyInput("perifollicular_sign", "Sinal perifolicular (couro cabeludo):", "Ex: Ausente, eritema, colarete...")}
                       {renderTrichoscopyInput("follicular_sign", "Sinal folicular:", "Ex: Pontos amarelos, pontos pretos...")}
                       {renderTrichoscopyInput("vessels", "Vasos:", "Ex: Normais em alça, arboriformes...")}
-
-                      {/* PULL TEST em destaque */}
-                      <div className="sm:col-span-2 bg-primary/5 p-3 rounded-lg border border-primary/30 space-y-2">
-                        <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
-                          <Activity className="w-3.5 h-3.5" /> PULL TEST
-                        </span>
-                        <div className="flex flex-wrap gap-1 pb-1">
-                          {trichoscopyOptions.pull_test.map((opt) => (
-                            <button
-                              type="button"
-                              key={opt}
-                              onClick={() => setExamField("pull_test", opt)}
-                              className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors ${
-                                exam.pull_test === opt
-                                  ? "bg-primary text-primary-foreground border-primary font-medium"
-                                  : "border-border/70 bg-muted/40 hover:bg-primary/10 hover:text-primary hover:border-primary/40 text-muted-foreground"
-                              }`}
-                            >
-                              {opt}
-                            </button>
-                          ))}
-                        </div>
-                        <Input
-                          value={exam.pull_test}
-                          onChange={(e) => setExamField("pull_test", e.target.value)}
-                          placeholder="Ex: Negativo / Positivo difuso (3 fios telógenos)..."
-                          className="h-8 text-xs bg-background"
-                        />
-                      </div>
                     </div>
                   )}
 
@@ -891,14 +973,47 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={requestClose}>Cancelar</Button>
           {viewMode !== "chooser" && (
             <Button onClick={handleSubmit} disabled={loading}>
-              {loading ? "Salvando..." : consultation ? "Salvar Alterações" : "Salvar Evolução"}
+              {loading ? "Salvando..." : consultation ? "Salvar Alterações" : combined ? "Salvar Anamnese e Consulta" : "Salvar Evolução"}
             </Button>
           )}
         </DialogFooter>
       </DialogContent>
+
+
+      <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deseja salvar antes de sair?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Há informações preenchidas que ainda não foram salvas. Se sair sem salvar, elas serão perdidas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={() => {
+                setConfirmClose(false);
+                onOpenChange(false);
+              }}
+            >
+              Sair sem salvar
+            </Button>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmClose(false);
+                handleSubmit();
+              }}
+            >
+              Salvar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <PhotoLightbox
         photos={existingPhotos}

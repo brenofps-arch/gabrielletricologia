@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import ProcedurePricesSettings from "@/components/ProcedurePricesSettings";
 
 const Configuracoes = () => {
   const [loading, setLoading] = useState(true);
@@ -80,6 +81,8 @@ const Configuracoes = () => {
           {saving ? "Salvando..." : "Salvar Alterações"}
         </Button>
       </div>
+
+      <ProcedurePricesSettings />
 
       <div className="bg-card rounded-xl border border-border p-6 space-y-4">
         <div className="flex items-center gap-3 mb-2">

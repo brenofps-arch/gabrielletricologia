@@ -8,7 +8,6 @@ import {
   Users,
   Wallet,
   MessageCircle,
-  ClipboardList,
   Settings,
   LogOut,
   Menu,
@@ -20,7 +19,6 @@ const navItems = [
   { to: "/agenda", icon: Calendar, label: "Agenda" },
   { to: "/pacientes", icon: Users, label: "Pacientes" },
   { to: "/financeiro", icon: Wallet, label: "Financeiro" },
-  { to: "/triagem", icon: ClipboardList, label: "Triagem" },
   { to: "/mensagens", icon: MessageCircle, label: "Mensagens" },
   { to: "/configuracoes", icon: Settings, label: "Configurações" },
 ];

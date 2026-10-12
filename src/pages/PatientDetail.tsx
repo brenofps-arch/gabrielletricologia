@@ -1,8 +1,9 @@
+import { wasAttended } from "@/lib/attendance";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, FileDown, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2, ChevronDown, ChevronUp, Stethoscope } from "lucide-react";
+import { ArrowLeft, Plus, FileDown, Download, Loader2, MapPin, AlertTriangle, Phone, Mail, Cake, Pencil, Receipt, Trash2, ChevronDown, ChevronUp, Stethoscope } from "lucide-react";
 import { formatPhone } from "@/lib/utils";import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,6 +22,8 @@ import QuoteHistory from "@/components/patient/QuoteHistory";
 import PaymentHistory from "@/components/patient/PaymentHistory";
 import LabExamHistory from "@/components/patient/LabExamHistory";
 import AnamnesisModal, { AnamnesisData, anamnesisLabels } from "@/components/patient/AnamnesisModal";
+import { clinicLocationShort } from "@/lib/clinicLocations";
+import { downloadMedicalRecordPDF } from "@/lib/generateMedicalRecordPDF";
 import type { Tables } from "@/integrations/supabase/types";
 
 const PatientDetail = () => {
@@ -37,6 +40,7 @@ const PatientDetail = () => {
   const [showAnamnesis, setShowAnamnesis] = useState(false);
   const [openConsultationAfterAnamnesis, setOpenConsultationAfterAnamnesis] = useState(false);
   const [anamnesisCollapsed, setAnamnesisCollapsed] = useState(true);
+  const [downloadingRecord, setDownloadingRecord] = useState(false);
 
 
   // Exclusão do paciente — dupla confirmação
@@ -66,7 +70,67 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
-  const procedureSessionsCount = consultations.filter((c) => c.visit_type === "procedimento").length;
+  // Mesmas chaves das abas, então os dados são compartilhados (sem consulta duplicada).
+  const { data: prescriptionRows = [] } = useQuery({
+    queryKey: ["prescriptions", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("prescriptions")
+        .select("*, prescription_items(*)")
+        .eq("patient_id", id!)
+        .order("prescribed_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: labExamRows = [] } = useQuery({
+    queryKey: ["lab_exams", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lab_exams")
+        .select("*")
+        .eq("patient_id", id!)
+        .order("exam_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: quoteRows = [] } = useQuery({
+    queryKey: ["quotes", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quotes")
+        .select("*, quote_items(*)")
+        .eq("patient_id", id!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: paymentRows = [] } = useQuery({
+    queryKey: ["payments", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("patient_id", id!)
+        .order("payment_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const medicationsCount = prescriptionRows.length + consultations.filter((c) => /[\p{L}\p{N}]/u.test(c.prescription_notes ?? "")).length;
+  const examsCount = labExamRows.length + consultations.filter((c) => /[\p{L}\p{N}]/u.test(c.exams_brought ?? "")).length;
+
+  const procedureSessionsCount = consultations.filter((c) => c.visit_type === "procedimento" && wasAttended(c)).length;
 
   const saveNotes = async () => {
     const { error } = await supabase.from("patients").update({ important_notes: notesValue }).eq("id", id!);
@@ -109,6 +173,21 @@ const PatientDetail = () => {
     }
   };
 
+  const handleDownloadRecord = async () => {
+    if (!patient) return;
+    setDownloadingRecord(true);
+    const toastId = toast.loading("Gerando prontuário...");
+    try {
+      await downloadMedicalRecordPDF(patient.id, (message) => toast.loading(message, { id: toastId }));
+      toast.success("Prontuário gerado!", { id: toastId });
+    } catch (error) {
+      console.error("Erro ao gerar prontuário:", error);
+      toast.error("Não foi possível gerar o prontuário.", { id: toastId });
+    } finally {
+      setDownloadingRecord(false);
+    }
+  };
+
   const anamnesis = (patient?.anamnesis ?? null) as AnamnesisData | null;
   const hasCompletedAnamnesis = Boolean(
     patient?.anamnesis_completed_at ||
@@ -116,8 +195,9 @@ const PatientDetail = () => {
   );
 
   const handleNewConsultation = () => {
-    // Se for a primeira consulta ou a anamnese ainda não estiver concluída, abre o modal de Anamnese
-    if (!hasCompletedAnamnesis || consultations.length === 0) {
+    // Na primeira consulta a anamnese é preenchida junto, no próprio modal da consulta.
+    // Se já houver consultas mas a anamnese nunca foi preenchida, pede a anamnese antes.
+    if (!hasCompletedAnamnesis && consultations.length > 0) {
       setOpenConsultationAfterAnamnesis(true);
       setShowAnamnesis(true);
     } else {
@@ -153,6 +233,9 @@ const PatientDetail = () => {
             {patient.email && <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" />{patient.email}</span>}
             {patient.birth_date && <span className="flex items-center gap-1"><Cake className="w-3.5 h-3.5" />{new Date(patient.birth_date + "T12:00").toLocaleDateString("pt-BR")}</span>}
             {patient.cpf && <span className="flex items-center gap-1 text-xs">CPF: {patient.cpf}</span>}
+            {clinicLocationShort(patient.clinic_location) && (
+              <span className="flex items-center gap-1 text-xs"><MapPin className="w-3.5 h-3.5" />{clinicLocationShort(patient.clinic_location)}</span>
+            )}
             {patient.referral_source && (
               <span className="text-xs font-medium px-3 py-1 rounded-full bg-muted text-muted-foreground border border-border">
                 {{
@@ -177,6 +260,9 @@ const PatientDetail = () => {
           <Button variant="outline" size="icon" onClick={() => setDeleteStep(1)} title="Excluir paciente"
             className="text-destructive border-destructive/30 hover:bg-destructive/5">
             <Trash2 className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" className="gap-1.5" onClick={handleDownloadRecord} disabled={downloadingRecord}>
+            {downloadingRecord ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Baixar Prontuário
           </Button>
           <Button variant="outline" className="gap-1.5" onClick={() => setShowPrescription(true)}>
             <FileDown className="w-4 h-4" /> Gerar Receita
@@ -327,11 +413,11 @@ const PatientDetail = () => {
       {/* Tabs */}
       <Tabs defaultValue="timeline" className="w-full">
         <TabsList className="bg-muted/50">
-          <TabsTrigger value="timeline">Histórico de Consultas ({consultations.length})</TabsTrigger>
-          <TabsTrigger value="medications">Farmacoterapia</TabsTrigger>
-          <TabsTrigger value="exams">Exames Laboratoriais</TabsTrigger>
-          <TabsTrigger value="quotes">Orçamentos</TabsTrigger>
-          <TabsTrigger value="payments">Pagamentos</TabsTrigger>
+          <TabsTrigger value="timeline">Histórico de Consultas ({consultations.filter(wasAttended).length})</TabsTrigger>
+          <TabsTrigger value="medications">Farmacoterapia ({medicationsCount})</TabsTrigger>
+          <TabsTrigger value="exams">Exames Laboratoriais ({examsCount})</TabsTrigger>
+          <TabsTrigger value="quotes">Orçamentos ({quoteRows.length})</TabsTrigger>
+          <TabsTrigger value="payments">Pagamentos ({paymentRows.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="timeline" className="mt-4">
           <ConsultationTimeline
@@ -349,7 +435,7 @@ const PatientDetail = () => {
           <MedicationHistory patientId={patient.id} consultations={consultations} />
         </TabsContent>
         <TabsContent value="exams" className="mt-4">
-          <LabExamHistory patientId={patient.id} />
+          <LabExamHistory patientId={patient.id} consultations={consultations} />
         </TabsContent>
         <TabsContent value="quotes" className="mt-4">
           <QuoteHistory patientId={patient.id} patientName={patient.name} />
@@ -370,6 +456,7 @@ const PatientDetail = () => {
         consultation={editingConsultation}
         previousConsultations={consultations}
         anamnesis={hasCompletedAnamnesis ? anamnesis : null}
+        combineAnamnesis={consultations.length === 0}
         onSuccess={refresh}
       />
       <PrescriptionModal open={showPrescription} onOpenChange={setShowPrescription} patientId={patient.id} patientName={patient.name} onSuccess={refresh} />
