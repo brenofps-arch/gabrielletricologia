@@ -188,7 +188,7 @@ const PatientDetail = () => {
     }
   };
 
-  const anamnesis = (patient?.anamnesis ?? null) as AnamnesisData | null;
+  const anamnesis = (patient?.anamnesis ?? null) as unknown as AnamnesisData | null;
   const hasCompletedAnamnesis = Boolean(
     patient?.anamnesis_completed_at ||
     (anamnesis && Object.values(anamnesis).some((v) => typeof v === "string" && v.trim().length > 0))
