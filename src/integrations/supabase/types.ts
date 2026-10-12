@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -121,74 +121,6 @@ export type Database = {
           },
         ]
       }
-      consultations: {
-        Row: {
-          chief_complaint: string | null
-          consultation_date: string
-          created_at: string
-          diagnosis: string | null
-          exams_brought: string | null
-          id: string
-          observations: string | null
-          patient_id: string
-          physical_exam: string | null
-          prescription_notes: string | null
-          procedure_medications: string | null
-          procedure_number: number | null
-          procedure_type: string | null
-          treatment_plan: string | null
-          updated_at: string
-          user_id: string
-          visit_type: string | null
-        }
-        Insert: {
-          chief_complaint?: string | null
-          consultation_date?: string
-          created_at?: string
-          diagnosis?: string | null
-          exams_brought?: string | null
-          id?: string
-          observations?: string | null
-          patient_id: string
-          physical_exam?: string | null
-          prescription_notes?: string | null
-          procedure_medications?: string | null
-          procedure_number?: number | null
-          procedure_type?: string | null
-          treatment_plan?: string | null
-          updated_at?: string
-          user_id: string
-          visit_type?: string | null
-        }
-        Update: {
-          chief_complaint?: string | null
-          consultation_date?: string
-          created_at?: string
-          diagnosis?: string | null
-          exams_brought?: string | null
-          id?: string
-          observations?: string | null
-          patient_id?: string
-          physical_exam?: string | null
-          prescription_notes?: string | null
-          procedure_medications?: string | null
-          procedure_number?: number | null
-          procedure_type?: string | null
-          treatment_plan?: string | null
-          updated_at?: string
-          user_id?: string
-          visit_type?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "consultations_patient_id_fkey"
-            columns: ["patient_id"]
-            isOneToOne: false
-            referencedRelation: "patients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       consultation_photos: {
         Row: {
           consultation_id: string
@@ -240,6 +172,77 @@ export type Database = {
           },
         ]
       }
+      consultations: {
+        Row: {
+          attendance_status: string | null
+          chief_complaint: string | null
+          consultation_date: string
+          created_at: string
+          diagnosis: string | null
+          exams_brought: string | null
+          id: string
+          observations: string | null
+          patient_id: string
+          physical_exam: string | null
+          prescription_notes: string | null
+          procedure_medications: string | null
+          procedure_number: number | null
+          procedure_type: string | null
+          treatment_plan: string | null
+          updated_at: string
+          user_id: string
+          visit_type: string | null
+        }
+        Insert: {
+          attendance_status?: string | null
+          chief_complaint?: string | null
+          consultation_date?: string
+          created_at?: string
+          diagnosis?: string | null
+          exams_brought?: string | null
+          id?: string
+          observations?: string | null
+          patient_id: string
+          physical_exam?: string | null
+          prescription_notes?: string | null
+          procedure_medications?: string | null
+          procedure_number?: number | null
+          procedure_type?: string | null
+          treatment_plan?: string | null
+          updated_at?: string
+          user_id: string
+          visit_type?: string | null
+        }
+        Update: {
+          attendance_status?: string | null
+          chief_complaint?: string | null
+          consultation_date?: string
+          created_at?: string
+          diagnosis?: string | null
+          exams_brought?: string | null
+          id?: string
+          observations?: string | null
+          patient_id?: string
+          physical_exam?: string | null
+          prescription_notes?: string | null
+          procedure_medications?: string | null
+          procedure_number?: number | null
+          procedure_type?: string | null
+          treatment_plan?: string | null
+          updated_at?: string
+          user_id?: string
+          visit_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultations_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_calendar_tokens: {
         Row: {
           access_token: string
@@ -273,6 +276,88 @@ export type Database = {
           scope?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      invoices: {
+        Row: {
+          access_key: string | null
+          amount: number
+          created_at: string
+          id: string
+          invoice_number: string
+          issued_at: string
+          patient_id: string
+          payment_id: string | null
+          quote_id: string | null
+          service_description: string | null
+          user_id: string
+        }
+        Insert: {
+          access_key?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_number: string
+          issued_at?: string
+          patient_id: string
+          payment_id?: string | null
+          quote_id?: string | null
+          service_description?: string | null
+          user_id: string
+        }
+        Update: {
+          access_key?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_number?: string
+          issued_at?: string
+          patient_id?: string
+          payment_id?: string | null
+          quote_id?: string | null
+          service_description?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      iris_job_runs: {
+        Row: {
+          created_at: string
+          job: string
+          run_date: string
+        }
+        Insert: {
+          created_at?: string
+          job: string
+          run_date: string
+        }
+        Update: {
+          created_at?: string
+          job?: string
+          run_date?: string
         }
         Relationships: []
       }
@@ -364,6 +449,7 @@ export type Database = {
           anamnesis: Json | null
           anamnesis_completed_at: string | null
           birth_date: string | null
+          clinic_location: string | null
           condition: string | null
           cpf: string | null
           created_at: string
@@ -382,6 +468,7 @@ export type Database = {
           anamnesis?: Json | null
           anamnesis_completed_at?: string | null
           birth_date?: string | null
+          clinic_location?: string | null
           condition?: string | null
           cpf?: string | null
           created_at?: string
@@ -400,6 +487,7 @@ export type Database = {
           anamnesis?: Json | null
           anamnesis_completed_at?: string | null
           birth_date?: string | null
+          clinic_location?: string | null
           condition?: string | null
           cpf?: string | null
           created_at?: string
@@ -416,12 +504,70 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_receipts: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          notes: string | null
+          patient_id: string
+          payment_id: string | null
+          receipt_date: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          notes?: string | null
+          patient_id: string
+          payment_id?: string | null
+          receipt_date?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          notes?: string | null
+          patient_id?: string
+          payment_id?: string | null
+          receipt_date?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_receipts_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_receipts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount: number
           created_at: string
           description: string | null
           id: string
+          installments: number | null
           notes: string | null
           paid_at: string | null
           patient_id: string
@@ -437,6 +583,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          installments?: number | null
           notes?: string | null
           paid_at?: string | null
           patient_id: string
@@ -452,6 +599,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          installments?: number | null
           notes?: string | null
           paid_at?: string | null
           patient_id?: string
@@ -568,6 +716,36 @@ export type Database = {
           },
         ]
       }
+      procedure_prices: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          plan_price: number | null
+          price: number
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          plan_price?: number | null
+          price?: number
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          plan_price?: number | null
+          price?: number
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -638,7 +816,9 @@ export type Database = {
           created_at: string
           id: string
           image_use_clause: boolean
+          included_items: string | null
           notes: string | null
+          package_name: string | null
           paid_amount: number | null
           patient_id: string
           payment_date: string | null
@@ -646,6 +826,10 @@ export type Database = {
           payment_methods: string | null
           payment_notes: string | null
           payment_status: string | null
+          pix_key: string | null
+          price_3x: number | null
+          price_6x: number | null
+          price_full: number | null
           total_value: number
           updated_at: string
           user_id: string
@@ -655,7 +839,9 @@ export type Database = {
           created_at?: string
           id?: string
           image_use_clause?: boolean
+          included_items?: string | null
           notes?: string | null
+          package_name?: string | null
           paid_amount?: number | null
           patient_id: string
           payment_date?: string | null
@@ -663,6 +849,10 @@ export type Database = {
           payment_methods?: string | null
           payment_notes?: string | null
           payment_status?: string | null
+          pix_key?: string | null
+          price_3x?: number | null
+          price_6x?: number | null
+          price_full?: number | null
           total_value?: number
           updated_at?: string
           user_id: string
@@ -672,7 +862,9 @@ export type Database = {
           created_at?: string
           id?: string
           image_use_clause?: boolean
+          included_items?: string | null
           notes?: string | null
+          package_name?: string | null
           paid_amount?: number | null
           patient_id?: string
           payment_date?: string | null
@@ -680,6 +872,10 @@ export type Database = {
           payment_methods?: string | null
           payment_notes?: string | null
           payment_status?: string | null
+          pix_key?: string | null
+          price_3x?: number | null
+          price_6x?: number | null
+          price_full?: number | null
           total_value?: number
           updated_at?: string
           user_id?: string
@@ -799,12 +995,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -828,11 +1024,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -853,11 +1049,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -878,11 +1074,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -895,11 +1091,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
