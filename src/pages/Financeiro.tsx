@@ -21,6 +21,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import InvoiceModal, { type InvoiceRecord } from "@/components/InvoiceModal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -119,6 +120,19 @@ const Financeiro = () => {
       return data || [];
     },
   });
+
+  // Notas fiscais (NFS-e) já registradas
+  const { data: invoices = [] } = useQuery({
+    queryKey: ["invoices-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("invoices").select("*").order("issued_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as InvoiceRecord[];
+    },
+  });
+  const [invoiceTarget, setInvoiceTarget] = useState<any | null>(null);
+  const invoiceFor = (p: any): InvoiceRecord | null =>
+    invoices.find((i) => (i.payment_id && i.payment_id === p.id) || (i.quote_id && i.quote_id === p.quote_id)) ?? null;
 
   // Busca lista de pacientes para o seletor
   const { data: patients = [] } = useQuery({
@@ -844,6 +858,31 @@ const Financeiro = () => {
                             </Button>
                           )}
 
+                          {isPaid && (() => {
+                            const inv = invoiceFor(p);
+                            return inv ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs text-green-700 border-green-300 bg-green-50 hover:bg-green-100 gap-1"
+                                onClick={() => setInvoiceTarget(p)}
+                                title="Ver nota fiscal"
+                              >
+                                <FileText className="w-3.5 h-3.5" /> NF nº {inv.invoice_number}
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs gap-1"
+                                onClick={() => setInvoiceTarget(p)}
+                                title="Gerar nota fiscal"
+                              >
+                                <FileText className="w-3.5 h-3.5" /> Gerar NF
+                              </Button>
+                            );
+                          })()}
+
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1286,6 +1325,14 @@ const Financeiro = () => {
       </Dialog>
 
       {/* Modal de Exclusão */}
+      <InvoiceModal
+        open={!!invoiceTarget}
+        onOpenChange={(o) => !o && setInvoiceTarget(null)}
+        transaction={invoiceTarget}
+        invoice={invoiceTarget ? invoiceFor(invoiceTarget) : null}
+        onChanged={() => queryClient.invalidateQueries({ queryKey: ["invoices-all"] })}
+      />
+
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

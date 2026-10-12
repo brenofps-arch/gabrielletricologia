@@ -279,6 +279,70 @@ export type Database = {
         }
         Relationships: []
       }
+      invoices: {
+        Row: {
+          access_key: string | null
+          amount: number
+          created_at: string
+          id: string
+          invoice_number: string
+          issued_at: string
+          patient_id: string
+          payment_id: string | null
+          quote_id: string | null
+          service_description: string | null
+          user_id: string
+        }
+        Insert: {
+          access_key?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_number: string
+          issued_at?: string
+          patient_id: string
+          payment_id?: string | null
+          quote_id?: string | null
+          service_description?: string | null
+          user_id: string
+        }
+        Update: {
+          access_key?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_number?: string
+          issued_at?: string
+          patient_id?: string
+          payment_id?: string | null
+          quote_id?: string | null
+          service_description?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       iris_learnings: {
         Row: {
           context_note: string | null
