@@ -82,7 +82,7 @@ export function normalizePhone(raw: string): string {
 }
 
 export interface PendingAction {
-  type: "agendar" | "cancelar" | "pagamento";
+  type: "agendar" | "cancelar" | "pagamento" | "cadastro";
   summary: string;
   params: Record<string, any>;
   created_at: string;
@@ -90,3 +90,85 @@ export interface PendingAction {
 
 export const isPendingFresh = (p: PendingAction | null | undefined, now = new Date()) =>
   !!p && now.getTime() - new Date(p.created_at).getTime() <= PENDING_TTL_MINUTES * 60000;
+
+// ── Cadastro de paciente ────────────────────────────────────────────────
+
+/** CPF com 11 dígitos válidos -> "000.000.000-00". Devolve null se inválido. */
+export function normalizeCpf(raw: string): string | null {
+  const d = (raw ?? "").replace(/\D/g, "");
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return null;
+  const calc = (len: number) => {
+    let sum = 0;
+    for (let i = 0; i < len; i++) sum += Number(d[i]) * (len + 1 - i);
+    const r = (sum * 10) % 11;
+    return r === 10 ? 0 : r;
+  };
+  if (calc(9) !== Number(d[9]) || calc(10) !== Number(d[10])) return null;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+/** "30/04/1975", "30-04-75" ou "1975-04-30" -> "1975-04-30". null se inválida. */
+export function parseBirthDate(raw: string): string | null {
+  const t = (raw ?? "").trim();
+  let y: number;
+  let m: number;
+  let d: number;
+  let mt = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (mt) {
+    y = +mt[1];
+    m = +mt[2];
+    d = +mt[3];
+  } else {
+    mt = t.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/);
+    if (!mt) return null;
+    d = +mt[1];
+    m = +mt[2];
+    y = +mt[3];
+    if (mt[3].length === 2) y += y > 30 ? 1900 : 2000;
+  }
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+  if (y < 1900 || dt.getTime() > Date.now()) return null;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+const LOCATIONS: [string, string[]][] = [
+  ["vila_velha", ["vila velha"]],
+  ["vitoria", ["vitoria"]],
+  ["cariacica", ["cariacica"]],
+  ["niteroi", ["niteroi"]],
+];
+
+/** Texto livre ("vitória e vila velha") -> "vila_velha,vitoria" (formato do sistema). */
+export function normalizeLocations(raw: string): string {
+  const t = normalizeText(raw);
+  return LOCATIONS.filter(([, names]) => names.some((n) => t.includes(n))).map(([v]) => v).join(",");
+}
+
+const REFERRALS: [string, string[]][] = [
+  ["indicacao_medico", ["medico", "medica"]],
+  ["indicacao", ["indicacao", "indicou", "amigo", "amiga", "paciente"]],
+  ["instagram_organico", ["instagram"]],
+  ["anuncio", ["anuncio", "facebook", "propaganda"]],
+  ["google", ["google", "busca", "pesquisa"]],
+  ["tiktok", ["tiktok", "tik tok"]],
+  ["retorno", ["retorno", "voltou", "antigo"]],
+];
+
+export function normalizeReferral(raw: string): string | null {
+  const t = normalizeText(raw);
+  if (!t) return null;
+  for (const [v, keys] of REFERRALS) if (keys.some((k) => t.includes(k))) return v;
+  return "outro";
+}
+
+export const REFERRAL_LABELS: Record<string, string> = {
+  indicacao: "Indicação de paciente",
+  indicacao_medico: "Indicação de médico",
+  instagram_organico: "Instagram",
+  anuncio: "Anúncio",
+  google: "Google",
+  tiktok: "TikTok",
+  retorno: "Retorno de paciente antigo",
+  outro: "Outro",
+};

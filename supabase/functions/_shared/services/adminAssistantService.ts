@@ -8,8 +8,14 @@ import {
   brtDateTime,
   formatDateBr,
   matchByName,
+  normalizeCpf,
+  normalizeLocations,
   normalizePhone,
+  normalizeReferral,
+  normalizeText,
+  parseBirthDate,
   PendingAction,
+  REFERRAL_LABELS,
   toBrt,
   weekdayLabel,
 } from "./adminLogic.ts";
@@ -94,6 +100,12 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
         });
         if (error) throw new Error(error.message);
         return `✅ Pagamento lançado: ${p.summary}`;
+      }
+
+      if (p.type === "cadastro") {
+        const { error } = await supabase.from("patients").insert({ user_id: ownerUserId, ...a.record });
+        if (error) throw new Error(error.message);
+        return `✅ Paciente cadastrado: ${p.summary.replace(/^Cadastrar paciente: /, "")}`;
       }
 
       return "Não reconheci essa ação. Nada foi alterado.";
@@ -252,6 +264,117 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
             params: { event_id: ev.id },
           });
           return { preparado: true, resumo: summary };
+        },
+      },
+      {
+        name: "propor_cadastro_paciente",
+        description:
+          "Cadastra um NOVO paciente. Chame a cada mensagem com TODOS os dados já informados na conversa. " +
+          "A ferramenta devolve o que ainda falta. NÃO grava: só prepara; o sistema pede o ok da equipe.",
+        parameters: {
+          type: "object",
+          properties: {
+            nome: { type: "string", description: "Nome completo" },
+            telefone: { type: "string", description: "Telefone com DDD" },
+            cpf: { type: "string" },
+            email: { type: "string" },
+            data_nascimento: { type: "string", description: "DD/MM/AAAA ou AAAA-MM-DD" },
+            origem: { type: "string", description: "Como conheceu: indicação, Google, Instagram, anúncio, etc." },
+            local_atendimento: { type: "string", description: "Vitória, Vila Velha, Cariacica e/ou Niterói" },
+            cadastrar_mesmo_com_pendencias: {
+              type: "boolean",
+              description: "true somente se a equipe pediu para cadastrar assim mesmo, sem os campos pendentes",
+            },
+          },
+          required: ["nome"],
+        },
+        execute: async (args: any) => {
+          const nome = String(args?.nome ?? "").trim().replace(/\s+/g, " ");
+          if (nome.split(" ").length < 2) return { error: "Preciso do nome completo (nome e sobrenome)." };
+
+          const invalidos: string[] = [];
+          const record: Record<string, any> = { name: nome };
+
+          const phoneRaw = String(args?.telefone ?? "").trim();
+          if (phoneRaw) {
+            const digits = phoneRaw.replace(/\D/g, "");
+            if (digits.length < 10 || digits.length > 13) invalidos.push("telefone (precisa de DDD)");
+            else record.phone = phoneRaw;
+          }
+          const cpfRaw = String(args?.cpf ?? "").trim();
+          if (cpfRaw) {
+            const cpf = normalizeCpf(cpfRaw);
+            if (!cpf) invalidos.push("CPF (11 dígitos válidos)");
+            else record.cpf = cpf;
+          }
+          const emailRaw = String(args?.email ?? "").trim();
+          if (emailRaw) {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) invalidos.push("e-mail");
+            else record.email = emailRaw.toLowerCase();
+          }
+          const birthRaw = String(args?.data_nascimento ?? "").trim();
+          if (birthRaw) {
+            const b = parseBirthDate(birthRaw);
+            if (!b) invalidos.push("data de nascimento (use DD/MM/AAAA)");
+            else record.birth_date = b;
+          }
+          const locRaw = String(args?.local_atendimento ?? "").trim();
+          if (locRaw) {
+            const loc = normalizeLocations(locRaw);
+            if (!loc) invalidos.push("local de atendimento (Vitória, Vila Velha, Cariacica ou Niterói)");
+            else record.clinic_location = loc;
+          }
+          const refRaw = String(args?.origem ?? "").trim();
+          if (refRaw) record.referral_source = normalizeReferral(refRaw);
+
+          // Já existe alguém com esse nome?
+          const all = await loadPatients();
+          const sameName = all.filter((p: any) => normalizeText(p.name) === normalizeText(nome));
+          if (sameName.length > 0) {
+            return { ja_cadastrado: sameName.map((p: any) => ({ nome: p.name, telefone: p.phone ?? null })) };
+          }
+          const similar = matchByName(all, nome).slice(0, 4).map((p: any) => p.name);
+
+          const faltando: string[] = [];
+          if (!record.phone) faltando.push("telefone");
+          if (!record.cpf) faltando.push("CPF (necessário para emitir nota fiscal)");
+          if (!record.birth_date) faltando.push("data de nascimento");
+          if (!record.clinic_location) faltando.push("local de atendimento");
+          if (!record.referral_source) faltando.push("como conheceu a Dra.");
+          if (!record.email) faltando.push("e-mail");
+
+          const ready = faltando.length === 0 || args?.cadastrar_mesmo_com_pendencias === true;
+          if (invalidos.length > 0 || !ready) {
+            return {
+              preparado: false,
+              nome,
+              dados_validos: record,
+              invalidos,
+              faltando,
+              parecidos_no_cadastro: similar,
+              instrucao: "Mostre o que já tem e o que falta; pergunte se quer completar ou cadastrar assim mesmo.",
+            };
+          }
+
+          const resumoCampos = [
+            `*${record.name}*`,
+            record.phone ? `tel ${record.phone}` : null,
+            record.cpf ? `CPF ${record.cpf}` : null,
+            record.birth_date ? `nasc. ${formatDateBr(record.birth_date)}` : null,
+            record.clinic_location ? `local ${String(record.clinic_location).split(",").join(" e ").replace(/_/g, " ")}` : null,
+            record.referral_source ? `origem ${REFERRAL_LABELS[record.referral_source] ?? record.referral_source}` : null,
+            record.email ?? null,
+          ].filter(Boolean).join(" · ");
+
+          const summary = `Cadastrar paciente: ${resumoCampos}` +
+            (faltando.length ? ` (sem: ${faltando.join(", ")})` : "");
+          setPending({
+            type: "cadastro",
+            summary,
+            created_at: new Date().toISOString(),
+            params: { record },
+          });
+          return { preparado: true, resumo: summary, parecidos_no_cadastro: similar };
         },
       },
       {
