@@ -172,3 +172,21 @@ export const REFERRAL_LABELS: Record<string, string> = {
   retorno: "Retorno de paciente antigo",
   outro: "Outro",
 };
+
+/** Converte Markdown comum (**negrito**, # títulos) para a formatação do WhatsApp (*negrito*). */
+export function toWhatsAppFormat(text: string): string {
+  return (text ?? "")
+    .replace(/\*\*(.+?)\*\*/gs, "*$1*")
+    .replace(/^#{1,6}\s+(.+)$/gm, "*$1*")
+    .replace(/__(.+?)__/gs, "_$1_")
+    .replace(/^\s*[-•]\s+/gm, "• ");
+}
+
+/** Resumo curto e sem dados sensíveis de um erro, para mostrar à equipe. */
+export function shortError(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  const code = raw.match(/\b(4\d\d|5\d\d)\b/)?.[1];
+  const status = raw.match(/"status"\s*:\s*"([A-Z_]+)"/)?.[1];
+  const msg = raw.match(/"message"\s*:\s*"([^"]{0,140})/)?.[1];
+  return [code ? `HTTP ${code}` : null, status, msg].filter(Boolean).join(" · ") || raw.slice(0, 120);
+}

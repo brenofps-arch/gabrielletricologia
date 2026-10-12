@@ -16,6 +16,7 @@ import {
   parseBirthDate,
   PendingAction,
   REFERRAL_LABELS,
+  shortError,
   toBrt,
   weekdayLabel,
 } from "./adminLogic.ts";
@@ -478,7 +479,11 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
       return { text, pending: holder.p };
     } catch (e) {
       console.error("Falha ao gerar resposta da Íris:", e);
-      return { text: "Estou com uma instabilidade técnica agora. Tente de novo em instantes.", pending: null };
+      return {
+        text: `Estou com uma instabilidade técnica agora. Tente de novo em instantes.
+(motivo: ${shortError(e)})`,
+        pending: null,
+      };
     }
   }
 

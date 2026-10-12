@@ -5,7 +5,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createEvolutionService } from "../_shared/services/evolutionService.ts";
 import { createAdminAssistant } from "../_shared/services/adminAssistantService.ts";
-import { isPendingFresh, parseConfirmation, PendingAction } from "../_shared/services/adminLogic.ts";
+import { isPendingFresh, parseConfirmation, PendingAction, toWhatsAppFormat } from "../_shared/services/adminLogic.ts";
 import { ADMIN_PHONE_NUMBERS, getAdminGroupJid, getOwnerUserId } from "../_shared/config.ts";
 
 const corsHeaders = {
@@ -96,7 +96,8 @@ serve(async (req) => {
       await supabase.from("whatsapp_conversations").update({ context_data: context }).eq("id", conversation.id);
     };
 
-    const reply = async (text: string) => {
+    const reply = async (rawText: string) => {
+      const text = toWhatsAppFormat(rawText);
       const res = await evolution.sendText(chatId, text);
       await supabase.from("whatsapp_messages").insert({
         conversation_id: conversation.id,
