@@ -1,16 +1,29 @@
-// Webhook da Evolution API -> Íris (assistente INTERNA da equipe).
-// A Íris não responde pacientes: só números autorizados da equipe, em conversa
-// direta ou no grupo configurado em IRIS_ADMIN_GROUP_JID.
+// Webhook da Evolution API -> Íris (Gemini) -> Evolution API.
+// Camada de transporte apenas: toda a inteligência vive em _shared/services.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createEvolutionService } from "../_shared/services/evolutionService.ts";
-import { createAdminAssistant } from "../_shared/services/adminAssistantService.ts";
-import { isPendingFresh, parseConfirmation, PendingAction } from "../_shared/services/adminLogic.ts";
-import { ADMIN_PHONE_NUMBERS, getAdminGroupJid, getOwnerUserId } from "../_shared/config.ts";
+import { createIrisService } from "../_shared/services/irisService.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const DEFAULT_WHATSAPP_OWNER_USER_ID = "922d4be3-68dd-4b84-8fca-8db3b442a44c";
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const ALLOWED_PHONE_NUMBERS = ["5521971183737", "5527997244164", "5527997626808"];
+const ADMIN_PHONE_NUMBERS = ["5521971183737", "5527997244164", "5527997626808"];
+
+const CORRECTION_COMMAND = "#corrigir_resposta_iris";
+const CANCEL_COMMAND = "#cancelar";
+
+const getWhatsappOwnerUserId = () => {
+  const configured = Deno.env.get("WHATSAPP_OWNER_USER_ID")?.trim();
+  if (configured && UUID_REGEX.test(configured)) return configured;
+  if (configured) console.warn("WHATSAPP_OWNER_USER_ID inválido; usando fallback");
+  return DEFAULT_WHATSAPP_OWNER_USER_ID;
 };
 
 const ok = (payload: Record<string, unknown>) =>
@@ -24,14 +37,14 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
+    console.log("Webhook recebido:", JSON.stringify(body).slice(0, 1000));
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const evolution = createEvolutionService();
-    const OWNER_USER_ID = getOwnerUserId();
-    const ADMIN_GROUP = getAdminGroupJid();
+    const OWNER_USER_ID = getWhatsappOwnerUserId();
 
     if (!evolution.isConfigured()) {
       console.error("Evolution API não configurada");
@@ -41,44 +54,42 @@ serve(async (req) => {
     const incoming = evolution.parseWebhookEvent(body);
     if (!incoming) return ok({ status: "ignored", event: body?.event ?? null });
 
-    const { senderPhone, chatId, isGroup, contactName, text: messageText, waMessageId } = incoming;
+    const { phoneNumber, contactName, text: messageText, waMessageId } = incoming;
+    console.log(`Mensagem de ${contactName} (${phoneNumber}): ${messageText}`);
 
-    // ── Autorização: nada de paciente. Só a equipe. ─────────────────────
-    if (!ADMIN_PHONE_NUMBERS.includes(senderPhone)) {
+    if (!ALLOWED_PHONE_NUMBERS.includes(phoneNumber)) {
+      console.log("Número não autorizado:", phoneNumber);
       return ok({ status: "ignored_unauthorized" });
     }
-    if (isGroup && chatId !== ADMIN_GROUP) {
-      return ok({ status: "ignored_group" });
-    }
 
-    // ── Conversa (uma por telefone ou por grupo) ────────────────────────
+    // ── Conversa ────────────────────────────────────────────────────────
     let { data: conversation } = await supabase
       .from("whatsapp_conversations")
       .select("*")
-      .eq("phone_number", chatId)
+      .eq("phone_number", phoneNumber)
       .eq("user_id", OWNER_USER_ID)
       .eq("is_active", true)
       .maybeSingle();
 
     if (!conversation) {
-      const { data: created, error } = await supabase
+      const { data: newConv, error } = await supabase
         .from("whatsapp_conversations")
         .insert({
           user_id: OWNER_USER_ID,
-          phone_number: chatId,
-          contact_name: isGroup ? "Grupo da equipe" : contactName,
+          phone_number: phoneNumber,
+          contact_name: contactName,
           last_message: messageText,
-          conversation_state: "admin",
+          conversation_state: "greeting",
           context_data: {},
         })
         .select()
         .single();
       if (error) throw error;
-      conversation = created;
+      conversation = newConv;
     } else {
       await supabase
         .from("whatsapp_conversations")
-        .update({ last_message: messageText })
+        .update({ last_message: messageText, contact_name: contactName })
         .eq("id", conversation.id);
     }
 
@@ -91,13 +102,8 @@ serve(async (req) => {
       status: "delivered",
     });
 
-    const setContext = async (context: Record<string, unknown>) => {
-      conversation.context_data = context;
-      await supabase.from("whatsapp_conversations").update({ context_data: context }).eq("id", conversation.id);
-    };
-
     const reply = async (text: string) => {
-      const res = await evolution.sendText(chatId, text);
+      const res = await evolution.sendText(phoneNumber, text);
       await supabase.from("whatsapp_messages").insert({
         conversation_id: conversation.id,
         direction: "outbound",
@@ -106,51 +112,108 @@ serve(async (req) => {
         wa_message_id: res.messageId,
         status: res.ok ? "sent" : "failed",
       });
-      await supabase.from("whatsapp_conversations").update({ last_message: text }).eq("id", conversation.id);
+      await supabase
+        .from("whatsapp_conversations")
+        .update({ last_message: text })
+        .eq("id", conversation.id);
       return res.ok;
     };
 
-    const assistant = createAdminAssistant(supabase, OWNER_USER_ID);
-    const context = (conversation.context_data ?? {}) as Record<string, any>;
-    const pending: PendingAction | null = isPendingFresh(context.pending_action) ? context.pending_action : null;
+    // ── 🎓 Fluxo de ensino da Íris ──────────────────────────────────────
+    const trimmed = messageText.trim();
 
-    // ── Há uma ação aguardando "ok"? Decide sem passar pelo modelo ──────
-    if (pending) {
-      const answer = parseConfirmation(messageText);
-      if (answer === "yes") {
-        await setContext({ ...context, pending_action: null });
-        await reply(await assistant.executePending(pending));
-        return ok({ status: "executed", action: pending.type });
+    if (trimmed.toLowerCase().startsWith(CORRECTION_COMMAND)) {
+      const { data: history } = await supabase
+        .from("whatsapp_messages")
+        .select("direction, message_text, created_at")
+        .eq("conversation_id", conversation.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      const ordered = (history ?? []).reverse();
+      const lastOutbound = [...ordered].reverse().find((m: any) => m.direction === "outbound");
+      const lastInbound = [...ordered].reverse().find(
+        (m: any) =>
+          m.direction === "inbound" &&
+          m.message_text !== messageText &&
+          (!lastOutbound || new Date(m.created_at) < new Date(lastOutbound.created_at)),
+      );
+
+      const inlineCorrection = trimmed.slice(CORRECTION_COMMAND.length).trim();
+
+      if (inlineCorrection) {
+        await supabase.from("iris_learnings").insert({
+          user_id: OWNER_USER_ID,
+          patient_message: lastInbound?.message_text ?? null,
+          wrong_response: lastOutbound?.message_text ?? null,
+          correct_response: inlineCorrection,
+        });
+        await reply("✅ Anotado! Vou usar essa resposta como referência a partir de agora.");
+        return ok({ status: "learned" });
       }
-      if (answer === "no") {
-        await setContext({ ...context, pending_action: null });
-        await reply("Ok, não fiz nada. 👍");
-        return ok({ status: "discarded" });
-      }
-    } else if (context.pending_action) {
-      // expirou: limpa
-      await setContext({ ...context, pending_action: null });
+
+      await supabase
+        .from("whatsapp_conversations")
+        .update({
+          conversation_state: "awaiting_correction",
+          context_data: {
+            ...(conversation.context_data ?? {}),
+            pending_correction: {
+              patient_message: lastInbound?.message_text ?? null,
+              wrong_response: lastOutbound?.message_text ?? null,
+            },
+          },
+        })
+        .eq("id", conversation.id);
+
+      await reply("📝 Modo correção ativado. Me envie agora qual seria a resposta ideal e eu aprendo na hora.");
+      return ok({ status: "awaiting_correction" });
     }
 
-    // ── Conversa livre com a Íris (somente prepara ações) ───────────────
-    const result = await assistant.handleMessage({
+    if (conversation.conversation_state === "awaiting_correction") {
+      if (!ADMIN_PHONE_NUMBERS.includes(phoneNumber)) {
+        await supabase
+          .from("whatsapp_conversations")
+          .update({ conversation_state: "greeting", context_data: {} })
+          .eq("id", conversation.id);
+        conversation.conversation_state = "greeting";
+      } else if (trimmed.toLowerCase() === CANCEL_COMMAND) {
+        await supabase
+          .from("whatsapp_conversations")
+          .update({ conversation_state: "greeting", context_data: {} })
+          .eq("id", conversation.id);
+        await reply("❌ Modo correção cancelado. Voltando ao modo normal!");
+        return ok({ status: "cancelled" });
+      } else {
+        const pending = (conversation.context_data as any)?.pending_correction ?? {};
+        await supabase.from("iris_learnings").insert({
+          user_id: OWNER_USER_ID,
+          patient_message: pending.patient_message ?? null,
+          wrong_response: pending.wrong_response ?? null,
+          correct_response: messageText,
+        });
+        await supabase
+          .from("whatsapp_conversations")
+          .update({ conversation_state: "greeting", context_data: {} })
+          .eq("id", conversation.id);
+        await reply("✅ Aprendi! Da próxima vez que aparecer uma situação parecida vou usar essa resposta como referência. 💡");
+        return ok({ status: "learned" });
+      }
+    }
+
+    // ── Íris (Gemini + function calling) ────────────────────────────────
+    const iris = createIrisService(supabase, OWNER_USER_ID);
+    const result = await iris.handleMessage({
       conversationId: conversation.id,
+      phone: phoneNumber,
       text: messageText,
-      senderName: contactName,
-      hasPending: !!pending,
+      conversationState: conversation.conversation_state,
+      contextData: conversation.context_data,
     });
 
-    if (result.pending) {
-      await setContext({ ...context, pending_action: result.pending });
-      const header = result.text ? `${result.text}\n\n` : "";
-      await reply(
-        `${header}📝 *Vou fazer isto:*\n${result.pending.summary}\n\nResponda *ok* para confirmar ou *não* para descartar.`,
-      );
-      return ok({ status: "awaiting_confirmation", action: result.pending.type });
-    }
-
     await reply(result.text);
-    return ok({ status: "ok" });
+
+    return ok({ status: "ok", tools: result.toolCalls.map((t) => t.name) });
   } catch (error) {
     console.error("Erro no webhook:", error);
     return ok({ status: "error" });

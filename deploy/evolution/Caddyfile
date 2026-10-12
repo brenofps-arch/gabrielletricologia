@@ -1,3 +1,0 @@
-{$EVOLUTION_DOMAIN} {
-	reverse_proxy evolution:8080
-}

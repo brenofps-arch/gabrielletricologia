@@ -1,27 +1,10 @@
-import { Calendar, Users, ClipboardList, CalendarClock, AlarmClock, Syringe, MapPin } from "lucide-react";
-import { clinicLocationShort } from "@/lib/clinicLocations";
+import { Calendar, Users, ClipboardList, CalendarClock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, formatDistanceToNow, startOfMonth, endOfMonth, addDays, startOfDay, differenceInCalendarDays, isSameDay } from "date-fns";
+import { format, formatDistanceToNow, startOfMonth, endOfMonth, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { findPatientBySummary } from "@/lib/patientMatch";
-
-interface GEvent {
-  id: string;
-  summary?: string;
-  start: { dateTime?: string; date?: string };
-  end: { dateTime?: string; date?: string };
-  description?: string;
-  status?: string;
-}
-
-// Janela de alerta: sessoes de procedimento sao mensais, entao avisamos a
-// partir de ~20 dias (proximo do prazo) ate 60 dias (ainda relevante marcar).
-const PROCEDURE_ALERT_MIN_DAYS = 20;
-const PROCEDURE_ALERT_MAX_DAYS = 60;
-const PROCEDURE_ALERT_OVERDUE_DAYS = 31;
 
 const statusLabels: Record<string, { label: string; className: string }> = {
   confirmed: { label: "Confirmado", className: "bg-mint/30 text-secondary-foreground" },
@@ -54,134 +37,63 @@ const Index = () => {
     })();
   }, []);
 
-  const { data: patientList = [] } = useQuery({
-    queryKey: ["dashboard-patient-names", userId],
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  const { data: stats } = useQuery({
+    queryKey: ["dashboard-stats", userId],
     enabled: !!userId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("patients").select("id, name");
+      const now = new Date();
+      const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
+      const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
+      const weekEnd = format(addDays(now, 7), "yyyy-MM-dd");
+
+      const [todayRes, patientsRes, monthRes, weekRes] = await Promise.all([
+        supabase
+          .from("appointments")
+          .select("id", { count: "exact", head: true })
+          .eq("appointment_date", today)
+          .neq("status", "cancelled"),
+        supabase.from("patients").select("id", { count: "exact", head: true }),
+        supabase
+          .from("appointments")
+          .select("id", { count: "exact", head: true })
+          .gte("appointment_date", monthStart)
+          .lte("appointment_date", monthEnd)
+          .neq("status", "cancelled"),
+        supabase
+          .from("appointments")
+          .select("id", { count: "exact", head: true })
+          .gte("appointment_date", today)
+          .lte("appointment_date", weekEnd)
+          .neq("status", "cancelled"),
+      ]);
+
+      return {
+        today: todayRes.count ?? 0,
+        patients: patientsRes.count ?? 0,
+        month: monthRes.count ?? 0,
+        nextWeek: weekRes.count ?? 0,
+      };
+    },
+  });
+
+  const { data: upcoming = [] } = useQuery({
+    queryKey: ["dashboard-upcoming", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("id, patient_name, notes, appointment_date, appointment_time, status, patients(name)")
+        .gte("appointment_date", today)
+        .neq("status", "cancelled")
+        .order("appointment_date", { ascending: true })
+        .order("appointment_time", { ascending: true })
+        .limit(6);
       if (error) throw error;
       return data ?? [];
     },
   });
-  const patientCount = patientList.length;
-
-  const { data: procedureAlerts = [] } = useQuery({
-    queryKey: ["dashboard-procedure-alerts", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("consultations")
-        .select("patient_id, consultation_date, procedure_type, patients(name, clinic_location)")
-        .eq("visit_type", "procedimento")
-        .is("attendance_status", null)
-        .order("consultation_date", { ascending: false });
-      if (error) throw error;
-
-      // Mantem apenas a sessao de procedimento mais recente de cada paciente
-      const latestByPatient = new Map<string, (typeof data)[number]>();
-      for (const c of data ?? []) {
-        if (!latestByPatient.has(c.patient_id)) latestByPatient.set(c.patient_id, c);
-      }
-
-      const now = new Date();
-      return Array.from(latestByPatient.values())
-        .map((c) => {
-          const lastDate = new Date(c.consultation_date);
-          const daysSince = differenceInCalendarDays(now, lastDate);
-          return {
-            patientId: c.patient_id,
-            patientName: (c as any).patients?.name ?? "Paciente",
-            location: clinicLocationShort((c as any).patients?.clinic_location),
-            procedureType: c.procedure_type as string | null,
-            lastDate,
-            daysSince,
-          };
-        })
-        .filter((p) => p.daysSince >= PROCEDURE_ALERT_MIN_DAYS && p.daysSince <= PROCEDURE_ALERT_MAX_DAYS)
-        .sort((a, b) => b.daysSince - a.daysSince);
-    },
-  });
-
-  // Uma única busca no Google Calendar cobre o mês atual e os próximos 7 dias;
-  // dela saem a lista de próximas consultas e os contadores dos cards.
-  const { data: calendarResult } = useQuery({
-    queryKey: ["dashboard-gcal", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return { connected: false, events: [] as GEvent[] };
-      const now = new Date();
-      const timeMin = startOfMonth(now).toISOString();
-      const monthEnd = endOfMonth(now);
-      const weekEnd = addDays(now, 7);
-      const timeMax = (monthEnd > weekEnd ? monthEnd : weekEnd).toISOString();
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` } });
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-      return { connected: !!json.connected, events: (json.events ?? []) as GEvent[] };
-    },
-  });
-  const calendarConnected = calendarResult?.connected ?? true;
-
-  // Eventos futuros (até 120 dias) para saber quem já tem retorno marcado.
-  const { data: futureEvents = [] } = useQuery({
-    queryKey: ["dashboard-gcal-future", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return [] as GEvent[];
-      const timeMin = startOfDay(new Date()).toISOString();
-      const timeMax = addDays(new Date(), 120).toISOString();
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` } });
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-      return (json.events ?? []) as GEvent[];
-    },
-  });
-
-  const eventStart = (e: GEvent) => {
-    if (e.start.dateTime) return new Date(e.start.dateTime);
-    return new Date(`${e.start.date}T00:00:00`);
-  };
-  const eventEnd = (e: GEvent) => {
-    if (e.end.dateTime) return new Date(e.end.dateTime);
-    return new Date(`${e.end.date}T00:00:00`);
-  };
-
-  // Os contadores só consideram eventos que batem com um paciente cadastrado
-  // (compromissos pessoais ficam de fora).
-  const isPatientEvent = (e: GEvent) => !!findPatientBySummary(e.summary, patientList);
-
-  // Pacientes que já têm algum compromisso futuro na agenda.
-  const nextScheduled = new Map<string, Date>();
-  for (const e of futureEvents) {
-    if (e.status === "cancelled") continue;
-    const p = findPatientBySummary(e.summary, patientList);
-    if (!p) continue;
-    const start = eventStart(e);
-    const cur = nextScheduled.get(p.id);
-    if (!cur || start < cur) nextScheduled.set(p.id, start);
-  }
-  // Quem já tem horário marcado continua na lista, mas vai para o fim, com aviso.
-  const pendingAlerts = procedureAlerts
-    .map((p) => ({ ...p, scheduledFor: nextScheduled.get(p.patientId) ?? null }))
-    .sort((a, b) => Number(!!a.scheduledFor) - Number(!!b.scheduledFor));
-
-  const now = new Date();
-  const weekLimit = addDays(now, 7);
-  const calendarEvents = (calendarResult?.events ?? []).filter((e) => e.start.dateTime || e.start.date);
-  const upcoming = calendarEvents.filter((e) => eventEnd(e) > now && eventStart(e) < weekLimit);
-  const patientEvents = calendarEvents.filter(isPatientEvent);
-  const stats = {
-    today: patientEvents.filter((e) => isSameDay(eventStart(e), now)).length,
-    month: patientEvents.filter((e) => {
-      const s = eventStart(e);
-      return s >= startOfMonth(now) && s <= endOfMonth(now);
-    }).length,
-    nextWeek: upcoming.filter(isPatientEvent).length,
-  };
 
   const { data: activities = [] } = useQuery({
     queryKey: ["dashboard-activity", userId],
@@ -221,10 +133,10 @@ const Index = () => {
   });
 
   const statCards = [
-    { label: "Consultas Hoje", value: stats.today, icon: Calendar, color: "bg-primary/10 text-primary" },
-    { label: "Pacientes Cadastrados", value: patientCount, icon: Users, color: "bg-mint/30 text-secondary-foreground" },
-    { label: "Consultas no Mês", value: stats.month, icon: ClipboardList, color: "bg-rose-gold-light text-primary" },
-    { label: "Próximos 7 dias", value: stats.nextWeek, icon: CalendarClock, color: "bg-mint-light text-secondary-foreground" },
+    { label: "Consultas Hoje", value: stats?.today ?? 0, icon: Calendar, color: "bg-primary/10 text-primary" },
+    { label: "Pacientes Cadastrados", value: stats?.patients ?? 0, icon: Users, color: "bg-mint/30 text-secondary-foreground" },
+    { label: "Consultas no Mês", value: stats?.month ?? 0, icon: ClipboardList, color: "bg-rose-gold-light text-primary" },
+    { label: "Próximos 7 dias", value: stats?.nextWeek ?? 0, icon: CalendarClock, color: "bg-mint-light text-secondary-foreground" },
   ];
 
   return (
@@ -233,60 +145,6 @@ const Index = () => {
         <h1 className="text-3xl font-heading font-semibold text-foreground">Bom dia, {displayName}</h1>
         <p className="text-muted-foreground font-body mt-1">Aqui está o resumo do seu dia.</p>
       </div>
-
-      {pendingAlerts.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <AlarmClock className="w-5 h-5 text-amber-700" />
-            <h2 className="text-base font-heading font-semibold text-amber-800">
-              Pacientes próximas de completar 1 mês da última sessão
-            </h2>
-          </div>
-          <div className="space-y-2">
-            {pendingAlerts.map((p) => {
-              const overdue = p.daysSince >= PROCEDURE_ALERT_OVERDUE_DAYS;
-              return (
-                <button
-                  key={p.patientId}
-                  onClick={() => navigate(`/pacientes/${p.patientId}`)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg bg-white/70 border border-amber-200/70 hover:bg-white transition-colors text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <Syringe className="w-4 h-4 text-amber-700 shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {p.patientName}
-                        {p.location && (
-                          <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-amber-800 bg-amber-100/70 rounded-full px-2 py-0.5 align-middle">
-                            <MapPin className="w-3 h-3" />{p.location}
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Última sessão{p.procedureType ? ` (${p.procedureType})` : ""} em{" "}
-                        {format(p.lastDate, "dd/MM/yyyy", { locale: ptBR })}
-                      </p>
-                    </div>
-                  </div>
-                  {p.scheduledFor ? (
-                    <span className="text-xs font-medium px-3 py-1 rounded-full shrink-0 bg-mint/40 text-secondary-foreground">
-                      Já agendado para {format(p.scheduledFor, "dd/MM 'às' HH:mm", { locale: ptBR })}
-                    </span>
-                  ) : (
-                    <span
-                      className={`text-xs font-medium px-3 py-1 rounded-full shrink-0 ${
-                        overdue ? "bg-destructive/10 text-destructive" : "bg-amber-200/60 text-amber-800"
-                      }`}
-                    >
-                      {overdue ? `Atrasado há ${p.daysSince - 30} dia(s)` : `Faltam ${30 - p.daysSince} dia(s)`}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {statCards.map((stat) => (
@@ -313,43 +171,34 @@ const Index = () => {
               Ver agenda completa
             </button>
           </div>
-          {!calendarConnected ? (
+          {upcoming.length === 0 ? (
             <div className="py-10 text-center">
               <Calendar className="w-10 h-10 mx-auto text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground">Google Calendar não conectado.</p>
-              <button onClick={() => navigate("/agenda")} className="text-xs text-primary hover:underline mt-1">
-                Conecte na Agenda para ver suas próximas consultas aqui.
-              </button>
-            </div>
-          ) : upcoming.length === 0 ? (
-            <div className="py-10 text-center">
-              <Calendar className="w-10 h-10 mx-auto text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground">Nenhuma consulta agendada para os próximos 7 dias.</p>
-              <p className="text-xs text-muted-foreground mt-1">Novos eventos da sua agenda aparecerão aqui automaticamente.</p>
+              <p className="text-sm text-muted-foreground">Nenhuma consulta agendada.</p>
+              <p className="text-xs text-muted-foreground mt-1">Novas consultas aparecerão aqui automaticamente.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {upcoming.slice(0, 6).map((e) => {
-                const startRaw = e.start.dateTime || e.start.date;
-                if (!startRaw) return null;
-                const start = new Date(startRaw);
-                const isToday = isSameDay(start, new Date());
-                const timeLabel = e.start.dateTime ? format(start, "HH:mm") : "Dia todo";
+              {upcoming.map((apt: any) => {
+                const isToday = apt.appointment_date === today;
+                const patientName = apt.patients?.name || apt.patient_name;
                 return (
                   <div
-                    key={e.id}
+                    key={apt.id}
                     className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-16 shrink-0">
-                        <p className="text-sm font-semibold text-primary font-body">{timeLabel}</p>
+                        <p className="text-sm font-semibold text-primary font-body">
+                          {String(apt.appointment_time).slice(0, 5)}
+                        </p>
                         <p className="text-[10px] text-muted-foreground">
-                          {isToday ? "Hoje" : format(start, "dd/MM", { locale: ptBR })}
+                          {isToday ? "Hoje" : format(new Date(`${apt.appointment_date}T12:00:00`), "dd/MM", { locale: ptBR })}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">{e.summary || "Sem título"}</p>
-                        {e.description && <p className="text-xs text-muted-foreground line-clamp-1">{e.description}</p>}
+                        <p className="text-sm font-medium text-foreground">{patientName}</p>
+                        {apt.notes && <p className="text-xs text-muted-foreground">{apt.notes}</p>}
                       </div>
                     </div>
                     <span className="text-xs font-medium px-3 py-1 rounded-full bg-mint/30 text-secondary-foreground">

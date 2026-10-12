@@ -1,7 +1,4 @@
-import { useEffect, useState, useRef } from "react";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pill, Activity, HeartPulse, Users, Calendar, Scissors, Sparkles, User } from "lucide-react";
+import { Pill, Activity, HeartPulse, Users, Calendar, Scissors, Sparkles, User, FileText, FlaskConical } from "lucide-react";
 
 export interface AnamnesisData {
+  current_illness_history: string;
   // Dados Pessoais e Sociais
   profession: string;
   marital_status: string;
@@ -30,7 +28,6 @@ export interface AnamnesisData {
   alcohol: string;
   physical_activity: string;
   physical_activity_type: string;
-  diet: string;
   bowel_function: string;
   water_intake: string;
   supplements: string;
@@ -48,9 +45,11 @@ export interface AnamnesisData {
   haircare_routine_products: string;
   haircare_scalp_symptoms: string;
   haircare_previous_treatments: string;
+  exams_brought: string;
 }
 
 export const emptyAnamnesis: AnamnesisData = {
+  current_illness_history: "",
   profession: "",
   marital_status: "",
   has_children: "",
@@ -67,7 +66,6 @@ export const emptyAnamnesis: AnamnesisData = {
   alcohol: "",
   physical_activity: "",
   physical_activity_type: "",
-  diet: "",
   bowel_function: "",
   water_intake: "",
   supplements: "",
@@ -84,9 +82,11 @@ export const emptyAnamnesis: AnamnesisData = {
   haircare_routine_products: "",
   haircare_scalp_symptoms: "",
   haircare_previous_treatments: "",
+  exams_brought: "",
 };
 
 export const anamnesisLabels: Record<keyof AnamnesisData, string> = {
+  current_illness_history: "Histórico da doença atual",
   // Dados Pessoais e Sociais
   profession: "Profissão",
   marital_status: "Estado civil",
@@ -104,7 +104,6 @@ export const anamnesisLabels: Record<keyof AnamnesisData, string> = {
   alcohol: "Etilismo",
   physical_activity: "Atividade física (Frequência)",
   physical_activity_type: "Tipo de atividade física praticada",
-  diet: "Alimentação / Dieta",
   bowel_function: "Funcionamento do intestino (Frequência evacuatória)",
   water_intake: "Ingestão de água",
   supplements: "Suplementos alimentares",
@@ -122,6 +121,7 @@ export const anamnesisLabels: Record<keyof AnamnesisData, string> = {
   haircare_routine_products: "Produtos em uso / Rotina capilar (shampoos, tônicos, óleos...)",
   haircare_scalp_symptoms: "Sintomas no couro cabeludo (coceira, descamação, dor/tricodinia, oleosidade...)",
   haircare_previous_treatments: "Tratamentos capilares prévios (Minoxidil, MMP, LED, etc.)",
+  exams_brought: "Exames trazidos pelo paciente (resultados e observações)",
 };
 
 interface Props {
@@ -138,8 +138,8 @@ const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
   has_children: ["Sim", "Não"],
   wants_children_next_year: ["Sim", "Não"],
   continuous_medications: ["Nega uso contínuo", "Anticoncepcional", "Anti-hipertensivo", "Tireoide (Levotiroxina)"],
-  allergies: ["Nega alergias conhecidas", "Alergia a Dipirona", "Alergia a Sulfas", "Alergia alimentar", "Intolerância à lactose", "Intolerância a glúten"],
-  comorbidities: ["Nenhuma comorbidade", "Hipotireoidismo", "Diabetes", "Hipertensão (HAS)", "SOP (Ovários Policísticos)", "Anemia / Ferritina baixa", "Dermatite seborreica", "Psoríase", "Doença autoimune", "Dislipidemia", "Obesidade"],
+  allergies: ["Nega alergias conhecidas", "Alergia a Dipirona", "Alergia a Sulfas", "Alergia alimentar"],
+  comorbidities: ["Nenhuma comorbidade", "Hipotireoidismo", "Diabetes", "Hipertensão (HAS)", "SOP (Ovários Policísticos)", "Anemia / Ferritina baixa", "Dermatite seborreica", "Psoríase", "Doença autoimune"],
   anabolic_steroids: ["Não usa / Nunca usou", "Uso prévio (passado)", "Uso atual"],
   topical_testosterone: ["Não faz reposição", "Reposição tópica atual", "Reposição tópica prévia"],
   previous_surgeries: ["Nenhuma cirurgia prévia", "Cirurgia bariátrica", "Cirurgia capilar prévia"],
@@ -148,13 +148,12 @@ const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
   alcohol: ["Não consome", "Socialmente (ocasional)", "Frequente"],
   physical_activity: ["Sedentário", "1 a 2x na semana", "3 a 5x na semana", "Diário / Atleta"],
   physical_activity_type: ["Musculação", "Corrida / Caminhada", "Pilates / Yoga", "Crossfit", "Natação", "Nenhuma"],
-  diet: ["Baixo em gordura", "Baixo em carboidrato", "Alta proteína", "Hipossódica", "Diabético", "Sem glúten", "Sem lactose", "Saudável"],
   bowel_function: ["Diário (1 a 2x ao dia)", "Dias alternados", "2 a 3x por semana (constipado)", "Mais de 3 dias sem evacuar", "Fezes ressecadas / difícil evacuação"],
   water_intake: ["Menos de 1L / dia", "1 a 2L / dia", "2 a 3L / dia", "Mais de 3L / dia"],
-  supplements: ["Nenhum suplemento", "Whey protein", "Creatina", "Polivitamínico / Vitamina D", "Biotina / Ferro"],
+  supplements: ["Nenhum suplemento", "Whey protein / Creatina", "Polivitamínico / Vitamina D", "Biotina / Ferro"],
   sleep_quality: ["Bom (7-8h reparador)", "Ruim / Insônia", "Fragmentado (acorda cansado)"],
   sleep_medication: ["Não usa medicação", "Zolpidem", "Melatonina", "Clonazepam (Rivotril)", "Trazodona", "Fitoterápico / Passiflora"],
-  family_history: ["Sem histórico relevante", "Calvície paterna", "Calvície materna", "Calvície bilateral (pai e mãe)", "Hipotireoidismo familiar", "Nega histórico familiar de câncer"],
+  family_history: ["Sem histórico relevante", "Calvície paterna", "Calvície materna", "Calvície bilateral (pai e mãe)", "Hipotireoidismo familiar"],
   // HairCare quick options
   haircare_washing_frequency: ["Diária", "Dias alternados", "2 a 3x por semana", "1x por semana"],
   haircare_water_temperature: ["Fria", "Morna", "Quente"],
@@ -167,51 +166,73 @@ const quickOptions: Partial<Record<keyof AnamnesisData, string[]>> = {
   haircare_previous_treatments: ["Nenhum tratamento prévio", "Minoxidil tópico", "Minoxidil oral", "MMP capilar", "Intradermoterapia", "LEDterapia", "Transplante capilar"],
 };
 
-export const saveAnamnesis = async (patientId: string, form: AnamnesisData, customDate: string) => {
-  const saveIsoDate = customDate ? new Date(`${customDate}T12:00:00Z`).toISOString() : new Date().toISOString();
+const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDate, onSaved }: Props) => {
+  const queryClient = useQueryClient();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<AnamnesisData>(emptyAnamnesis);
+  const [customDate, setCustomDate] = useState<string>(() => {
+    if (initialDate) return new Date(initialDate).toISOString().slice(0, 10);
+    return new Date().toISOString().slice(0, 10);
+  });
 
-  // Sincroniza automaticamente com notas importantes do paciente (Alergias e Comorbidades)
-  const notesParts: string[] = [];
-  if (form.allergies?.trim()) {
-    notesParts.push(`Alergias: ${form.allergies.trim()}`);
-  }
-  if (form.comorbidities?.trim()) {
-    notesParts.push(`Comorbidades: ${form.comorbidities.trim()}`);
-  }
+  useEffect(() => {
+    if (open) {
+      setForm({ ...emptyAnamnesis, ...(initialData || {}) });
+      if (initialDate) {
+        setCustomDate(new Date(initialDate).toISOString().slice(0, 10));
+      } else {
+        setCustomDate(new Date().toISOString().slice(0, 10));
+      }
+    }
+  }, [open, initialData, initialDate]);
 
-  const updatePayload: Record<string, unknown> = {
-    anamnesis: form as unknown as Record<string, string>,
-    anamnesis_completed_at: saveIsoDate,
-  };
-
-  if (notesParts.length > 0) {
-    updatePayload.important_notes = notesParts.join(" | ");
-  }
-
-  const { error } = await supabase
-    .from("patients")
-    .update(updatePayload)
-    .eq("id", patientId);
-  return error;
-};
-
-interface FieldsProps {
-  value: AnamnesisData;
-  onChange: (value: AnamnesisData) => void;
-  // Quando informados, exibe a barra de data da anamnese
-  date?: string;
-  onDateChange?: (date: string) => void;
-}
-
-// Campos da anamnese, reutilizados no modal de anamnese e na primeira consulta
-export const AnamnesisFields = ({ value, onChange, date, onDateChange }: FieldsProps) => {
-  const set = (k: keyof AnamnesisData, v: string) => onChange({ ...value, [k]: v });
+  const set = (k: keyof AnamnesisData, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const appendOrSet = (k: keyof AnamnesisData, option: string) => {
-    const current = value[k].trim();
-    if (!current) return onChange({ ...value, [k]: option });
-    if (current.includes(option)) return;
-    onChange({ ...value, [k]: `${current}, ${option}` });
+    setForm((prev) => {
+      const current = prev[k].trim();
+      if (!current) return { ...prev, [k]: option };
+      if (current.includes(option)) return prev;
+      return { ...prev, [k]: `${current}, ${option}` };
+    });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const saveIsoDate = customDate ? new Date(`${customDate}T12:00:00Z`).toISOString() : new Date().toISOString();
+
+    // Sincroniza automaticamente com notas importantes do paciente (Alergias e Comorbidades)
+    const notesParts: string[] = [];
+    if (form.allergies?.trim()) {
+      notesParts.push(`Alergias: ${form.allergies.trim()}`);
+    }
+    if (form.comorbidities?.trim()) {
+      notesParts.push(`Comorbidades: ${form.comorbidities.trim()}`);
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      anamnesis: form as unknown as Record<string, string>,
+      anamnesis_completed_at: saveIsoDate,
+    };
+
+    if (notesParts.length > 0) {
+      updatePayload.important_notes = notesParts.join(" | ");
+    }
+
+    const { error } = await supabase
+      .from("patients")
+      .update(updatePayload)
+      .eq("id", patientId);
+    setSaving(false);
+
+    if (error) {
+      toast.error("Erro ao salvar a anamnese.");
+      return;
+    }
+    toast.success("Anamnese do paciente salva com sucesso!");
+    queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
+    onOpenChange(false);
+    onSaved?.();
   };
 
   const renderField = (k: keyof AnamnesisData, placeholder: string, multiline = false) => (
@@ -251,14 +272,14 @@ export const AnamnesisFields = ({ value, onChange, date, onDateChange }: FieldsP
 
       {multiline ? (
         <Textarea
-          value={value[k]}
+          value={form[k]}
           onChange={(e) => set(k, e.target.value)}
           placeholder={placeholder}
           className="text-sm min-h-[68px] bg-background"
         />
       ) : (
         <Input
-          value={value[k]}
+          value={form[k]}
           onChange={(e) => set(k, e.target.value)}
           placeholder={placeholder}
           className="text-sm bg-background h-9"
@@ -268,8 +289,16 @@ export const AnamnesisFields = ({ value, onChange, date, onDateChange }: FieldsP
   );
 
   return (
-    <>
-      {onDateChange && (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-xl">Anamnese do Paciente</DialogTitle>
+          <DialogDescription className="font-body text-xs">
+            Preencha ou edite as informações clínicas e tricológicas do paciente. As informações ficam gravadas na ficha clínica.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Data da Anamnese */}
         <div className="flex items-center justify-between bg-muted/30 border border-border/80 p-3 rounded-xl">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-primary" />
@@ -277,14 +306,22 @@ export const AnamnesisFields = ({ value, onChange, date, onDateChange }: FieldsP
           </div>
           <Input
             type="date"
-            value={date}
-            onChange={(e) => onDateChange(e.target.value)}
+            value={customDate}
+            onChange={(e) => setCustomDate(e.target.value)}
             className="w-44 h-8 text-xs bg-background"
           />
         </div>
-      )}
 
         <div className="space-y-6 py-2">
+          {/* Histórico da Doença Atual */}
+          <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <FileText className="w-4 h-4 text-primary" />
+              <span>Histórico da Doença Atual</span>
+            </div>
+            {renderField("current_illness_history", "Descreva a queixa e o histórico da doença atual do paciente...", true)}
+          </div>
+
           {/* Seção 0: Dados Pessoais e Sociais */}
           <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -304,24 +341,21 @@ export const AnamnesisFields = ({ value, onChange, date, onDateChange }: FieldsP
                     <div key={opt} className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() =>
-                          onChange({
-                            ...value,
-                            has_children: opt,
-                            ...(opt !== "Sim" ? { children_quantity: "" } : {}),
-                          })
-                        }
+                        onClick={() => {
+                          set("has_children", opt);
+                          if (opt !== "Sim") set("children_quantity", "");
+                        }}
                         className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors ${
-                          value.has_children === opt
+                          form.has_children === opt
                             ? "bg-primary text-primary-foreground border-primary font-medium"
                             : "border-border/70 bg-muted/40 hover:bg-primary/10 hover:text-primary hover:border-primary/40 text-muted-foreground"
                         }`}
                       >
                         {opt}
                       </button>
-                      {opt === "Sim" && value.has_children === "Sim" && (
+                      {opt === "Sim" && form.has_children === "Sim" && (
                         <Input
-                          value={value.children_quantity}
+                          value={form.children_quantity}
                           onChange={(e) => set("children_quantity", e.target.value)}
                           placeholder="Quantidade"
                           className="text-xs bg-background h-7 w-24"
@@ -372,7 +406,6 @@ export const AnamnesisFields = ({ value, onChange, date, onDateChange }: FieldsP
               {renderField("alcohol", "Ex: Social fim de semana / Não consome")}
               {renderField("physical_activity", "Ex: 3 a 5x na semana")}
               {renderField("physical_activity_type", "Ex: Musculação intensa, corrida 5km, pilates...")}
-              {renderField("diet", "Ex: Dieta saudável, baixo carboidrato, restrição de glúten...")}
               {renderField("water_intake", "Ex: 2 a 2.5 litros ao dia")}
               {renderField("bowel_function", "Ex: Diário 1x ao dia / Constipado (a cada 3 dias)...")}
               {renderField("supplements", "Ex: Creatina, Whey, Biotina...", true)}
@@ -411,67 +444,19 @@ export const AnamnesisFields = ({ value, onChange, date, onDateChange }: FieldsP
               {renderField("haircare_previous_treatments", "Ex: Minoxidil 5% tópico por 1 ano, MMP prévio...", true)}
             </div>
           </div>
+
+          {/* Seção 6: Exames Trazidos pelo Paciente (Caixa Final) */}
+          <div className="bg-muted/20 border border-border/80 rounded-xl p-4 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <FlaskConical className="w-4 h-4 text-primary" />
+              <span>Exames Trazidos pelo Paciente</span>
+            </div>
+            {renderField("exams_brought", "Ex: Hemograma, ferritina, TSH... Cole aqui os exames e resultados trazidos pelo paciente...", true)}
+          </div>
         </div>
-    </>
-  );
-};
-
-const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDate, onSaved }: Props) => {
-  const queryClient = useQueryClient();
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<AnamnesisData>(emptyAnamnesis);
-  const [customDate, setCustomDate] = useState<string>(() => {
-    if (initialDate) return new Date(initialDate).toISOString().slice(0, 10);
-    return new Date().toISOString().slice(0, 10);
-  });
-
-  const [confirmClose, setConfirmClose] = useState(false);
-  // Foto do formulário ao abrir, para saber se há algo não salvo.
-  const baseline = useRef("");
-
-  useEffect(() => {
-    if (open) {
-      const nextForm = { ...emptyAnamnesis, ...(initialData || {}) };
-      const nextDate = initialDate ? new Date(initialDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
-      setForm(nextForm);
-      setCustomDate(nextDate);
-      baseline.current = JSON.stringify([nextForm, nextDate]);
-      setConfirmClose(false);
-    }
-  }, [open, initialData, initialDate]);
-
-  const isDirty = JSON.stringify([form, customDate]) !== baseline.current;
-  const requestClose = () => (isDirty ? setConfirmClose(true) : onOpenChange(false));
-
-  const handleSave = async () => {
-    setSaving(true);
-    const error = await saveAnamnesis(patientId, form, customDate);
-    setSaving(false);
-
-    if (error) {
-      toast.error("Erro ao salvar a anamnese.");
-      return;
-    }
-    toast.success("Anamnese do paciente salva com sucesso!");
-    queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
-    onOpenChange(false);
-    onSaved?.();
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : requestClose())}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-heading text-xl">Anamnese do Paciente</DialogTitle>
-          <DialogDescription className="font-body text-xs">
-            Preencha ou edite as informações clínicas e tricológicas do paciente. As informações ficam gravadas na ficha clínica.
-          </DialogDescription>
-        </DialogHeader>
-
-        <AnamnesisFields value={form} onChange={setForm} date={customDate} onDateChange={setCustomDate} />
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={requestClose}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button onClick={handleSave} disabled={saving} className="gap-2">
@@ -479,38 +464,6 @@ const AnamnesisModal = ({ open, onOpenChange, patientId, initialData, initialDat
           </Button>
         </DialogFooter>
       </DialogContent>
-
-      <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Deseja salvar antes de sair?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Há informações preenchidas que ainda não foram salvas. Se sair sem salvar, elas serão perdidas.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
-            <Button
-              variant="outline"
-              className="text-destructive hover:text-destructive"
-              onClick={() => {
-                setConfirmClose(false);
-                onOpenChange(false);
-              }}
-            >
-              Sair sem salvar
-            </Button>
-            <AlertDialogAction
-              onClick={() => {
-                setConfirmClose(false);
-                handleSave();
-              }}
-            >
-              Salvar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Dialog>
   );
 };
