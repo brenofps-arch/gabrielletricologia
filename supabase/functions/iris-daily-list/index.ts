@@ -23,6 +23,10 @@ const json = (payload: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(payload), { status, headers: { "Content-Type": "application/json" } });
 
 serve(async (req) => {
+  // Sondagens (CORS/OPTIONS) e GET nunca executam o envio.
+  if (req.method === "OPTIONS") return json({ ok: true });
+  if (req.method !== "POST") return json({ error: "use POST" }, 405);
+
   // Proteção opcional: se CRON_SECRET existir, o agendador precisa enviá-lo.
   const secret = Deno.env.get("CRON_SECRET");
   if (secret && req.headers.get("x-cron-secret") !== secret) return json({ error: "unauthorized" }, 401);
@@ -31,6 +35,8 @@ serve(async (req) => {
     const url = new URL(req.url);
     const target = url.searchParams.get("target") === "today" ? "today" : "tomorrow";
     const force = url.searchParams.get("force") === "1";
+    // dry=1: monta a lista e devolve o texto, sem enviar nada nem registrar.
+    const dry = url.searchParams.get("dry") === "1";
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -50,7 +56,7 @@ serve(async (req) => {
     }
 
     // Já enviada para essa data?
-    if (!force) {
+    if (!force && !dry) {
       const { data: already } = await supabase
         .from("iris_job_runs")
         .select("run_date")
@@ -80,6 +86,8 @@ serve(async (req) => {
       `📅 *Consultas ${when}* (${weekdayLabel(day)}, ${formatDateBr(day)})\n\n` +
       lines.join("\n") +
       `\n\nConfirmem com os pacientes. Se alguém cancelar, me avise aqui que eu tiro da agenda.`;
+
+    if (dry) return json({ status: "dry_run", date: day, events: events.length, message });
 
     const group = getAdminGroupJid();
     const targets = group ? [group] : ADMIN_PHONE_NUMBERS;
