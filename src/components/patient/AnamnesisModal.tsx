@@ -190,7 +190,7 @@ export const saveAnamnesis = async (patientId: string, form: AnamnesisData, cust
 
   const { error } = await supabase
     .from("patients")
-    .update(updatePayload)
+    .update(updatePayload as never)
     .eq("id", patientId);
   return error;
 };

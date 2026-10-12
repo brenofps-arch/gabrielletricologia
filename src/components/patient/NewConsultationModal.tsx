@@ -368,7 +368,7 @@ const NewConsultationModal = ({ open, onOpenChange, patientId, consultation, pre
     if (consultation?.id) {
       const { error } = await supabase
         .from("consultations")
-        .update(payload)
+        .update(payload as never)
         .eq("id", consultation.id);
       saveError = error;
     } else {
