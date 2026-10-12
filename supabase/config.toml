@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.whatsapp-reminders-cron]
 verify_jwt = false
+
+[functions.iris-daily-list]
+verify_jwt = false
+
+[functions.whatsapp-webhook]
+verify_jwt = false

@@ -1,11 +1,14 @@
 // Camada de serviço da Evolution API (envio/recebimento de WhatsApp).
 
 export interface IncomingMessage {
-  phoneNumber: string;
+  /** Quem escreveu (só dígitos). Em grupo, é o participante. */
+  senderPhone: string;
+  /** Onde responder: o telefone (conversa direta) ou o JID do grupo. */
+  chatId: string;
+  isGroup: boolean;
   contactName: string;
   text: string;
   waMessageId: string;
-  fromMe: boolean;
 }
 
 export function createEvolutionService(cfg?: {
@@ -28,12 +31,12 @@ export function createEvolutionService(cfg?: {
     if (!data) return null;
     if (data?.key?.fromMe === true) return null;
 
-    const rawPhone = data?.key?.remoteJid ?? "";
-    if (String(rawPhone).includes("@g.us")) return null; // ignora grupos
+    const remoteJid = String(data?.key?.remoteJid ?? "");
+    const isGroup = remoteJid.includes("@g.us");
 
-    const phoneNumber = String(rawPhone)
-      .replace("@s.whatsapp.net", "")
-      .replace(/\D/g, "");
+    // Em grupo, quem escreveu vem em key.participant.
+    const senderJid = isGroup ? String(data?.key?.participant ?? data?.participant ?? "") : remoteJid;
+    const senderPhone = senderJid.split("@")[0].replace(/\D/g, "");
 
     const text =
       data?.message?.conversation ||
@@ -42,14 +45,15 @@ export function createEvolutionService(cfg?: {
       data?.message?.listResponseMessage?.title ||
       "";
 
-    if (!phoneNumber || !text) return null;
+    if (!senderPhone || !text) return null;
 
     return {
-      phoneNumber,
-      contactName: data?.pushName || "Desconhecido",
+      senderPhone,
+      chatId: isGroup ? remoteJid : senderPhone,
+      isGroup,
+      contactName: data?.pushName || "Equipe",
       text: String(text),
       waMessageId: data?.key?.id || "",
-      fromMe: false,
     };
   }
 
@@ -57,7 +61,8 @@ export function createEvolutionService(cfg?: {
     if (!isConfigured()) {
       return { ok: false, messageId: null, error: "Evolution API não configurada" };
     }
-    const number = to.replace(/\D/g, "");
+    // Grupo: mantém o JID inteiro; conversa direta: só dígitos.
+    const number = to.includes("@g.us") ? to : to.replace(/\D/g, "");
     const endpoint = `${url}/message/sendText/${instance}`;
     try {
       const controller = new AbortController();

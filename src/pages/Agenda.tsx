@@ -55,7 +55,7 @@ const Agenda = () => {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ summary: "", description: "", date: "", startTime: "", endTime: "", phone: "", sendWhatsApp: true });
+  const [form, setForm] = useState({ summary: "", description: "", date: "", startTime: "", endTime: "", phone: "", sendWhatsApp: false });
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -116,7 +116,7 @@ const Agenda = () => {
       startTime,
       endTime: `${endH}:${pad(m)}`,
       phone: "",
-      sendWhatsApp: true,
+      sendWhatsApp: false,
     });
     setModalOpen(true);
   };
@@ -803,32 +803,6 @@ const Agenda = () => {
               <Label htmlFor="desc">Observações</Label>
               <Textarea id="desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
             </div>
-            {!editingId && (
-              <div className="space-y-3 rounded-lg border border-border p-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.sendWhatsApp}
-                    onChange={(e) => setForm({ ...form, sendWhatsApp: e.target.checked })}
-                    className="w-4 h-4 accent-primary"
-                  />
-                  <span className="text-sm font-body">Agendar lembrete por WhatsApp no dia anterior (08h)</span>
-                </label>
-                {form.sendWhatsApp && (
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Telefone do paciente *</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={form.phone}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                      placeholder="Ex: 5527999999999 (DDI + DDD + número)"
-                    />
-                    <p className="text-xs text-muted-foreground">Inclua o código do país (55 para Brasil) sem espaços ou símbolos.</p>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
           <DialogFooter className="gap-2">
             {editingId && (
