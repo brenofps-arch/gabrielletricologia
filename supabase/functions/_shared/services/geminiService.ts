@@ -53,24 +53,37 @@ export function createGeminiService(apiKey?: string) {
   }
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  const isTransient = (e: unknown) => /Gemini (429|500|502|503|504)\b/.test(e instanceof Error ? e.message : String(e));
+  // Erros em que vale passar para outro modelo: sobrecarga (503/500/502/504), cota esgotada (429)
+  // e modelo inexistente/indisponível para a chave (404).
+  const isSkippable = (e: unknown) =>
+    /Gemini (404|429|500|502|503|504)\b/.test(e instanceof Error ? e.message : String(e));
 
-  /** Tenta o modelo principal com novas tentativas e, se continuar fora do ar, o modelo reserva. */
+  /** Ordem de tentativa: o modelo principal e depois os reservas (cada um tem a sua própria cota gratuita). */
+  function modelChain(primary: string): string[] {
+    const extra = (Deno.env.get("GEMINI_FALLBACK_MODELS") || Deno.env.get("GEMINI_FALLBACK_MODEL") ||
+      "gemini-3.1-flash-lite,gemini-3.7-flash,gemini-3.8-flash,gemini-3.6-flash")
+      .split(",").map((m) => m.trim()).filter(Boolean);
+    return [primary, ...extra].filter((m, i, all) => all.indexOf(m) === i);
+  }
+
+  /**
+   * Percorre os modelos em sequência, trocando na hora quando um falha.
+   * Só espera (poucos segundos) depois de tentar todos, e repete o circuito uma vez.
+   */
   async function callWithResilience(primary: string, payload: unknown) {
-    const fallback = Deno.env.get("GEMINI_FALLBACK_MODEL") || "gemini-3.1-flash-lite";
-    const models = fallback && fallback !== primary ? [primary, fallback] : [primary];
+    const chain = modelChain(primary);
     let lastErr: unknown;
-    for (const model of models) {
-      for (const wait of [0, 1500, 4000]) {
-        if (wait) await sleep(wait);
+    for (let lap = 0; lap < 2; lap++) {
+      if (lap > 0) await sleep(2500);
+      for (const model of chain) {
         try {
           return await callGemini(model, payload);
         } catch (e) {
           lastErr = e;
-          if (!isTransient(e)) throw e; // erro de verdade (chave, pedido inválido): não adianta repetir
+          if (!isSkippable(e)) throw e; // erro real (chave inválida, pedido malformado): não adianta trocar
+          console.error(`Gemini: ${model} indisponível (${String(e).slice(0, 80)}); tentando o próximo`);
         }
       }
-      console.error(`Gemini: modelo ${model} indisponível, tentando o reserva`);
     }
     throw lastErr;
   }
