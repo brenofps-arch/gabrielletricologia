@@ -246,3 +246,41 @@ export function hasAnamnesis(anamnesis: unknown, completedAt?: string | null): b
     return true;
   });
 }
+
+export type VisitKind = "consulta" | "retorno" | "procedimento";
+
+/** Descobre o tipo pelo prefixo do título ("Procedimento: Ana"). null se não for de paciente. */
+export function visitKindFromTitle(summary: string): VisitKind | null {
+  const head = normalizeText((summary ?? "").split(":")[0]);
+  if (head.startsWith("procedimento")) return "procedimento";
+  if (head.startsWith("retorno")) return "retorno";
+  if (head.startsWith("consulta")) return "consulta";
+  return null;
+}
+
+/** "ANA paula" -> "Ana" (primeiro nome com inicial maiúscula). */
+export function firstNameOf(fullName: string): string {
+  const first = (fullName ?? "").trim().split(/\s+/)[0] ?? "";
+  return first ? first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() : "";
+}
+
+/** Texto pronto para a equipe copiar e enviar ao paciente. */
+export function confirmationText(input: {
+  name: string;
+  kind: VisitKind;
+  when: "hoje" | "amanhã";
+  weekday: string;
+  dateBr: string; // DD/MM/AAAA
+  time: string; // HH:MM
+  place?: string | null;
+}): string {
+  const what = input.kind === "procedimento" ? "o seu procedimento" : input.kind === "retorno" ? "o seu retorno" : "a sua consulta";
+  const place = input.place ? ` em ${input.place}` : "";
+  const nome = firstNameOf(input.name);
+  return (
+    `Olá, ${nome}! Tudo bem? 😊\n` +
+    `Passando para confirmar ${what} ${input.when === "hoje" ? "de hoje" : "de amanhã"}, ${input.weekday} (${input.dateBr.slice(0, 5)}), ` +
+    `às ${input.time}${place}.\n` +
+    `Podemos contar com a sua presença? Se precisar reagendar, é só nos avisar. Obrigada! 💛`
+  );
+}

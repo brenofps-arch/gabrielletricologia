@@ -10,9 +10,11 @@ import { createEvolutionService } from "../_shared/services/evolutionService.ts"
 import { createGoogleCalendarService } from "../_shared/services/googleCalendarService.ts";
 import {
   brtDateTime,
+  confirmationText,
   formatDateBr,
   matchByName,
   toBrt,
+  visitKindFromTitle,
   weekdayLabel,
 } from "../_shared/services/adminLogic.ts";
 import { ADMIN_PHONE_NUMBERS, getAdminGroupJid, getOwnerUserId } from "../_shared/config.ts";
@@ -70,29 +72,64 @@ serve(async (req) => {
     const events = await gcal.listEvents(brtDateTime(day, "00:00"), brtDateTime(day, "23:59"));
     if (events.length === 0) return json({ status: "no_events", date: day });
 
-    const { data: patients } = await supabase.from("patients").select("name, phone").eq("user_id", owner);
+    const { data: patients } = await supabase.from("patients").select("name, phone, clinic_location").eq("user_id", owner);
     const list = patients ?? [];
 
+    const when = target === "today" ? "hoje" : "amanhã";
+    const placeNames: Record<string, string> = {
+      vila_velha: "Vila Velha", vitoria: "Vitória", cariacica: "Cariacica", niteroi: "Niterói",
+    };
+
+    const patientTexts: string[] = [];
     const lines = events.map((e, i) => {
       const t = toBrt(e.start).time;
       const title = e.summary.includes(":") ? e.summary.slice(e.summary.indexOf(":") + 1).trim() : e.summary;
       const found = matchByName(list, title);
-      const phone = found.length === 1 && found[0].phone ? ` — ${found[0].phone}` : "";
+      const patient: any = found.length === 1 ? found[0] : null;
+      const phone = patient?.phone ? ` — ${patient.phone}` : "";
+
+      // Texto pronto de confirmação, só para compromissos de paciente.
+      const kind = visitKindFromTitle(e.summary);
+      if (kind) {
+        const fromDesc = e.description.match(/Local:\s*([^\n]+)/i)?.[1]?.trim() ?? null;
+        const locs = String(patient?.clinic_location ?? "").split(",").map((x: string) => x.trim()).filter(Boolean);
+        const place = fromDesc ?? (locs.length === 1 ? placeNames[locs[0]] ?? null : null);
+        patientTexts.push(
+          confirmationText({
+            name: patient?.name ?? title,
+            kind,
+            when,
+            weekday: weekdayLabel(day),
+            dateBr: formatDateBr(day),
+            time: t,
+            place,
+          }),
+        );
+      }
       return `${i + 1}) ${t} — ${e.summary}${phone}`;
     });
 
-    const when = target === "today" ? "de hoje" : "de amanhã";
     const message =
-      `📅 *Consultas ${when}* (${weekdayLabel(day)}, ${formatDateBr(day)})\n\n` +
+      `📅 *Consultas de ${when}* (${weekdayLabel(day)}, ${formatDateBr(day)})\n\n` +
       lines.join("\n") +
-      `\n\nConfirmem com os pacientes. Se alguém cancelar, me avise aqui que eu tiro da agenda.`;
+      `\n\nSe alguém cancelar, me avise aqui que eu tiro da agenda.` +
+      (patientTexts.length
+        ? `\n\nAbaixo, o texto pronto de cada paciente, na mesma ordem. É só copiar e enviar. 👇`
+        : "");
 
-    if (dry) return json({ status: "dry_run", date: day, events: events.length, message });
+    if (dry) return json({ status: "dry_run", date: day, events: events.length, message, patientTexts });
 
     const group = getAdminGroupJid();
     const targets = group ? [group] : ADMIN_PHONE_NUMBERS;
     const results: boolean[] = [];
-    for (const to of targets) results.push((await evolution.sendText(to, message)).ok);
+    for (const to of targets) {
+      results.push((await evolution.sendText(to, message)).ok);
+      // Um texto por paciente, em mensagens separadas, para copiar com um toque.
+      for (const text of patientTexts) {
+        await new Promise((r) => setTimeout(r, 900));
+        await evolution.sendText(to, text);
+      }
+    }
 
     // Só marca como enviada se chegou a pelo menos um destino.
     if (results.some(Boolean)) {
