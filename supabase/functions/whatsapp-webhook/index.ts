@@ -19,15 +19,11 @@ const ok = (payload: Record<string, unknown>) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-
+async function handle(body: any): Promise<Response> {
   // Onde avisar caso algo falhe depois que a mensagem for aceita (só equipe autorizada).
   let notifyTo: string | null = null;
 
   try {
-    const body = await req.json();
-
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -179,4 +175,25 @@ serve(async (req) => {
     }
     return ok({ status: "error" });
   }
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  let body: any = null;
+  try {
+    body = await req.json();
+  } catch (_e) {
+    return ok({ status: "invalid_body" });
+  }
+
+  // Responde na hora e processa em segundo plano: a Evolution desiste após 60 s,
+  // e a resposta da IA pode demorar mais que isso quando o Google está sobrecarregado.
+  const work = handle(body);
+  const runtime = (globalThis as any).EdgeRuntime;
+  if (runtime && typeof runtime.waitUntil === "function") {
+    runtime.waitUntil(work.catch((e) => console.error("Falha em segundo plano:", e)));
+    return ok({ status: "accepted" });
+  }
+  return await work;
 });

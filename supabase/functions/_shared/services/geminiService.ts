@@ -36,15 +36,26 @@ export function createGeminiService(apiKey?: string) {
 
   const isConfigured = () => key.length > 0;
 
-  async function callGemini(model: string, payload: unknown) {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify(payload),
-      },
-    );
+  async function callGemini(model: string, payload: unknown, timeoutMs = 20000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let res: Response;
+    try {
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        },
+      );
+    } catch (e) {
+      // Demorou demais ou a rede falhou: trata como indisponível para trocar de modelo.
+      throw new Error(`Gemini 504: sem resposta em ${Math.round(timeoutMs / 1000)}s (${model})`);
+    } finally {
+      clearTimeout(timer);
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       throw new Error(`Gemini ${res.status}: ${JSON.stringify(data).slice(0, 500)}`);
@@ -70,14 +81,17 @@ export function createGeminiService(apiKey?: string) {
    * Percorre os modelos em sequência, trocando na hora quando um falha.
    * Só espera (poucos segundos) depois de tentar todos, e repete o circuito uma vez.
    */
-  async function callWithResilience(primary: string, payload: unknown) {
+  async function callWithResilience(primary: string, payload: unknown, deadline: number) {
     const chain = modelChain(primary);
     let lastErr: unknown;
     for (let lap = 0; lap < 2; lap++) {
       if (lap > 0) await sleep(2500);
       for (const model of chain) {
+        // Orçamento de tempo total: não deixa a função passar do limite do servidor.
+        const left = deadline - Date.now();
+        if (left < 4000) throw lastErr ?? new Error("Gemini 504: tempo total esgotado");
         try {
-          return await callGemini(model, payload);
+          return await callGemini(model, payload, Math.min(15000, left - 1000));
         } catch (e) {
           lastErr = e;
           if (!isSkippable(e)) throw e; // erro real (chave inválida, pedido malformado): não adianta trocar
@@ -113,6 +127,8 @@ export function createGeminiService(apiKey?: string) {
       : undefined;
 
     const executed: GenerateResult["toolCalls"] = [];
+    // Tempo total para toda a resposta (todas as voltas de ferramentas incluídas).
+    const deadline = Date.now() + 100000;
 
     for (let round = 0; round <= maxRounds; round++) {
       const data = await callWithResilience(model, {
@@ -123,7 +139,7 @@ export function createGeminiService(apiKey?: string) {
           temperature: opts.temperature ?? 0.4,
           maxOutputTokens: 1024,
         },
-      });
+      }, deadline);
 
       const parts: any[] = data?.candidates?.[0]?.content?.parts ?? [];
       const calls = parts.filter((p) => p.functionCall).map((p) => p.functionCall);
