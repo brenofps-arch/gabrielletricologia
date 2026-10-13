@@ -188,7 +188,10 @@ export function shortError(e: unknown): string {
   const code = raw.match(/\b(4\d\d|5\d\d)\b/)?.[1];
   const status = raw.match(/"status"\s*:\s*"([A-Z_]+)"/)?.[1];
   const msg = raw.match(/"message"\s*:\s*"([^"]{0,140})/)?.[1];
-  return [code ? `HTTP ${code}` : null, status, msg].filter(Boolean).join(" · ") || raw.slice(0, 120);
+  // Erros nossos, em texto simples (ex.: "Gemini 504: sem resposta em 30s (modelo)"): mostra o texto.
+  const plain = raw.match(/^Gemini \d{3}:\s*([^{][^
+]{0,110})/)?.[1];
+  return [code ? `HTTP ${code}` : null, status, msg ?? plain].filter(Boolean).join(" · ") || raw.slice(0, 120);
 }
 
 /** Valida e normaliza os campos de cadastro de paciente informados pela equipe. */

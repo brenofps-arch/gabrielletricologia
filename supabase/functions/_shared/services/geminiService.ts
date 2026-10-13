@@ -91,7 +91,7 @@ export function createGeminiService(apiKey?: string) {
         const left = deadline - Date.now();
         if (left < 4000) throw lastErr ?? new Error("Gemini 504: tempo total esgotado");
         try {
-          return await callGemini(model, payload, Math.min(15000, left - 1000));
+          return await callGemini(model, payload, Math.min(30000, left - 1000));
         } catch (e) {
           lastErr = e;
           if (!isSkippable(e)) throw e; // erro real (chave inválida, pedido malformado): não adianta trocar
@@ -128,7 +128,7 @@ export function createGeminiService(apiKey?: string) {
 
     const executed: GenerateResult["toolCalls"] = [];
     // Tempo total para toda a resposta (todas as voltas de ferramentas incluídas).
-    const deadline = Date.now() + 100000;
+    const deadline = Date.now() + 120000;
 
     for (let round = 0; round <= maxRounds; round++) {
       const data = await callWithResilience(model, {
