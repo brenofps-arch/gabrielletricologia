@@ -77,7 +77,7 @@ serve(async (req) => {
           phone_number: chatId,
           contact_name: isGroup ? "Grupo da equipe" : contactName,
           last_message: messageText,
-          conversation_state: "admin",
+          conversation_state: "general",
           context_data: {},
         })
         .select()
