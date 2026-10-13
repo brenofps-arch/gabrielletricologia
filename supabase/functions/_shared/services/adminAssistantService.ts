@@ -7,6 +7,7 @@ import {
   addMinutesBrt,
   brtDateTime,
   formatDateBr,
+  hasAnamnesis,
   matchByName,
   normalizeCpf,
   normalizeLocations,
@@ -65,6 +66,14 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
       // Se não der para conferir uma tabela, assume que há histórico (mais seguro).
       out[label] = error ? 1 : (count ?? 0);
     }
+
+    // Anamnese preenchida também é histórico clínico.
+    const { data: pt, error: ptErr } = await supabase
+      .from("patients")
+      .select("anamnesis, anamnesis_completed_at")
+      .eq("id", patientId)
+      .maybeSingle();
+    out["anamnese"] = ptErr ? 1 : hasAnamnesis(pt?.anamnesis, pt?.anamnesis_completed_at) ? 1 : 0;
     return out;
   }
 
@@ -479,7 +488,7 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
         name: "propor_exclusao_paciente",
         description:
           "Exclui DEFINITIVAMENTE o cadastro de um paciente. Só funciona se o paciente NÃO tiver nenhum histórico " +
-          "(consultas, pagamentos, orçamentos, exames, notas, comprovantes, agendamentos). Útil para cadastro criado por engano. " +
+          "(consultas, pagamentos, orçamentos, exames, receitas, notas, comprovantes, agendamentos, anamnese preenchida). Útil para cadastro criado por engano. " +
           "NÃO exclui: pede o ok da equipe.",
         parameters: {
           type: "object",

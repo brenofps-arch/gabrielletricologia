@@ -233,3 +233,16 @@ export function parsePatientFields(args: Record<string, any>): { record: Record<
 
   return { record, invalidos };
 }
+
+/** A anamnese conta como histórico se foi concluída ou tem qualquer campo preenchido. */
+export function hasAnamnesis(anamnesis: unknown, completedAt?: string | null): boolean {
+  if (completedAt) return true;
+  if (!anamnesis || typeof anamnesis !== "object") return false;
+  return Object.values(anamnesis as Record<string, unknown>).some((v) => {
+    if (v === null || v === undefined) return false;
+    if (typeof v === "string") return v.trim().length > 0;
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === "boolean") return v;
+    return true;
+  });
+}
