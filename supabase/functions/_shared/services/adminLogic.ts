@@ -284,3 +284,22 @@ export function confirmationText(input: {
     `Podemos contar com a sua presença? Se precisar reagendar, é só nos avisar. Obrigada! 💛`
   );
 }
+
+// ── Pacientes com sessão atrasada (mesma regra do Dashboard) ─────────────
+export const LATE_MIN_DAYS = 20; // a partir daqui já aparece no alerta
+export const LATE_MAX_DAYS = 60; // depois disso deixa de aparecer
+export const LATE_OVERDUE_DAYS = 31; // a partir daqui é "atrasado"
+
+/** Dias entre duas datas YYYY-MM-DD (b - a). */
+export function daysBetween(a: string, b: string): number {
+  const da = Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10));
+  const db = Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10));
+  return Math.round((db - da) / 86400000);
+}
+
+/** Texto de situação do paciente conforme os dias desde a última sessão, ou null se fora da janela. */
+export function lateStatus(daysSince: number): { overdue: boolean; label: string } | null {
+  if (daysSince < LATE_MIN_DAYS || daysSince > LATE_MAX_DAYS) return null;
+  if (daysSince >= LATE_OVERDUE_DAYS) return { overdue: true, label: `Atrasado há ${daysSince - 30} dia(s)` };
+  return { overdue: false, label: `Faltam ${30 - daysSince} dia(s)` };
+}

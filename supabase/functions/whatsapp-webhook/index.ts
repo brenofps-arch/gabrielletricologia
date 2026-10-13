@@ -5,7 +5,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createEvolutionService } from "../_shared/services/evolutionService.ts";
 import { createAdminAssistant } from "../_shared/services/adminAssistantService.ts";
-import { isPendingFresh, parseConfirmation, PendingAction, toWhatsAppFormat } from "../_shared/services/adminLogic.ts";
+import { isPendingFresh, parseConfirmation, PendingAction, shortError, toWhatsAppFormat } from "../_shared/services/adminLogic.ts";
 import { ADMIN_PHONE_NUMBERS, getAdminGroupJid, getOwnerUserId } from "../_shared/config.ts";
 
 const corsHeaders = {
@@ -21,6 +21,9 @@ const ok = (payload: Record<string, unknown>) =>
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // Onde avisar caso algo falhe depois que a mensagem for aceita (só equipe autorizada).
+  let notifyTo: string | null = null;
 
   try {
     const body = await req.json();
@@ -59,6 +62,7 @@ serve(async (req) => {
     if (!ADMIN_PHONE_NUMBERS.includes(senderPhone)) {
       return ok({ status: "ignored_unauthorized" });
     }
+    notifyTo = chatId;
 
     // ── Conversa (uma por telefone ou por grupo) ────────────────────────
     let { data: conversation } = await supabase
@@ -163,6 +167,16 @@ serve(async (req) => {
     return ok({ status: "ok" });
   } catch (error) {
     console.error("Erro no webhook:", error);
+    if (notifyTo) {
+      try {
+        await createEvolutionService().sendText(
+          notifyTo,
+          `⚠️ Não consegui processar sua mensagem agora. Tente de novo em instantes.\n(motivo: ${shortError(error)})`,
+        );
+      } catch (_e) {
+        // sem como avisar; o erro já foi registrado no log
+      }
+    }
     return ok({ status: "error" });
   }
 });

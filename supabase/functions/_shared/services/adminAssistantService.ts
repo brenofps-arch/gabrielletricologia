@@ -6,8 +6,10 @@ import { createGoogleCalendarService } from "./googleCalendarService.ts";
 import {
   addMinutesBrt,
   brtDateTime,
+  daysBetween,
   formatDateBr,
   hasAnamnesis,
+  lateStatus,
   matchByName,
   normalizeCpf,
   normalizeLocations,
@@ -197,6 +199,93 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
           }
           const events = await gcal.listEvents(brtDateTime(from, "00:00"), brtDateTime(to, "23:59"));
           return { total: events.length, compromissos: events.map(describeEvent) };
+        },
+      },
+      {
+        name: "listar_pacientes_atrasados",
+        description:
+          "Lista os pacientes que estão perto de completar 1 mês da última sessão de procedimento ou já atrasados " +
+          "(mesma regra do alerta do Dashboard), com local de atendimento, telefone e se já têm retorno agendado.",
+        parameters: {
+          type: "object",
+          properties: {
+            local: {
+              type: "string",
+              description: "Filtro opcional por local: Vitória, Vila Velha, Cariacica ou Niterói. Vazio = todos.",
+            },
+          },
+        },
+        execute: async (args: any) => {
+          const wantedLocs = normalizeLocations(String(args?.local ?? "")).split(",").filter(Boolean);
+          if (String(args?.local ?? "").trim() && wantedLocs.length === 0) {
+            return { error: "Local não reconhecido. Use Vitória, Vila Velha, Cariacica ou Niterói." };
+          }
+
+          const { data, error } = await supabase
+            .from("consultations")
+            .select("patient_id, consultation_date, procedure_type, patients(name, phone, clinic_location)")
+            .eq("user_id", ownerUserId)
+            .eq("visit_type", "procedimento")
+            .is("attendance_status", null)
+            .order("consultation_date", { ascending: false });
+          if (error) return { error: error.message };
+
+          // Só a sessão de procedimento mais recente de cada paciente.
+          const latest = new Map<string, any>();
+          for (const c of data ?? []) if (!latest.has(c.patient_id)) latest.set(c.patient_id, c);
+
+          const today = toBrt(new Date().toISOString()).date;
+
+          // Retornos já marcados na agenda (próximos 120 dias).
+          const upcoming = new Map<string, { date: string; time: string }>();
+          try {
+            const end = new Date(Date.now() + 120 * 86400000).toISOString();
+            const events = await gcal.listEvents(new Date().toISOString(), end);
+            const all = await loadPatients();
+            for (const e of events) {
+              const title = e.summary.includes(":") ? e.summary.slice(e.summary.indexOf(":") + 1).trim() : e.summary;
+              const found = matchByName(all, title);
+              if (found.length !== 1) continue;
+              const when = toBrt(e.start);
+              const cur = upcoming.get(found[0].id);
+              if (!cur || `${when.date} ${when.time}` < `${cur.date} ${cur.time}`) upcoming.set(found[0].id, when);
+            }
+          } catch (_e) {
+            // sem acesso à agenda: segue sem a informação de "já agendado"
+          }
+
+          const rows: any[] = [];
+          for (const [patientId, c] of latest) {
+            const p = c.patients;
+            if (!p) continue;
+            const last = toBrt(c.consultation_date).date;
+            const days = daysBetween(last, today);
+            const st = lateStatus(days);
+            if (!st) continue;
+
+            const locs = String(p.clinic_location ?? "").split(",").map((x: string) => x.trim()).filter(Boolean);
+            if (wantedLocs.length > 0 && !wantedLocs.some((w) => locs.includes(w))) continue;
+
+            const labels: Record<string, string> = {
+              vila_velha: "Vila Velha", vitoria: "Vitória", cariacica: "Cariacica", niteroi: "Niterói",
+            };
+            const up = upcoming.get(patientId);
+            rows.push({
+              nome: p.name,
+              telefone: p.phone ?? null,
+              local: locs.map((l) => labels[l] ?? l).join(", ") || "sem local cadastrado",
+              ultimo_procedimento: c.procedure_type ?? null,
+              ultima_sessao: formatDateBr(last),
+              dias_desde_ultima: days,
+              situacao: st.label,
+              atrasado: st.overdue,
+              ja_agendado: up ? `${formatDateBr(up.date)} às ${up.time}` : null,
+            });
+          }
+
+          // Quem precisa de contato primeiro; já agendados por último.
+          rows.sort((a, b) => Number(!!a.ja_agendado) - Number(!!b.ja_agendado) || b.dias_desde_ultima - a.dias_desde_ultima);
+          return { total: rows.length, filtro_local: wantedLocs.length ? wantedLocs : "todos", pacientes: rows };
         },
       },
       {
