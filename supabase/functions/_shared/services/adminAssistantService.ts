@@ -244,7 +244,7 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
             const all = await loadPatients();
             for (const e of events) {
               const title = e.summary.includes(":") ? e.summary.slice(e.summary.indexOf(":") + 1).trim() : e.summary;
-              const found = matchByName(all, title);
+              const found: any[] = matchByName(all as any[], title);
               if (found.length !== 1) continue;
               const when = toBrt(e.start);
               const cur = upcoming.get(found[0].id);
