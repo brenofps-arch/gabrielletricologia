@@ -56,6 +56,9 @@ serve(async (req) => {
       base.setUTCDate(base.getUTCDate() + 1);
       day = toBrt(base.toISOString()).date;
     }
+    // Simulação: permite escolher a data, mas só com dry=1 (nunca envia nada).
+    const simulated = url.searchParams.get("date");
+    if (dry && simulated && /^\d{4}-\d{2}-\d{2}$/.test(simulated)) day = simulated;
 
     // Já enviada para essa data?
     if (!force && !dry) {
