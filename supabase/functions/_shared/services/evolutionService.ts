@@ -6,6 +6,10 @@ export interface IncomingMessage {
   /** Onde responder: o telefone (conversa direta) ou o JID do grupo. */
   chatId: string;
   isGroup: boolean;
+  /** JID de quem escreveu (pode ser um LID, "123@lid", sem telefone). */
+  senderJid: string;
+  /** true quando o remetente veio como LID e o telefone ainda precisa ser resolvido. */
+  senderIsLid: boolean;
   contactName: string;
   text: string;
   waMessageId: string;
@@ -36,7 +40,17 @@ export function createEvolutionService(cfg?: {
 
     // Em grupo, quem escreveu vem em key.participant.
     const senderJid = isGroup ? String(data?.key?.participant ?? data?.participant ?? "") : remoteJid;
-    const senderPhone = senderJid.split("@")[0].replace(/\D/g, "");
+    const senderIsLid = senderJid.endsWith("@lid");
+
+    // O WhatsApp novo identifica por LID; alguns campos trazem o telefone correspondente.
+    const altCandidates = [
+      data?.key?.participantAlt, data?.key?.participantPn, data?.key?.senderPn, data?.key?.remoteJidAlt,
+      data?.participantAlt, data?.participantPn, data?.senderPn,
+    ];
+    const altJid = altCandidates.map((v) => String(v ?? "")).find((v) => v.endsWith("@s.whatsapp.net"));
+    const senderPhone = senderIsLid && altJid
+      ? altJid.split("@")[0].replace(/\D/g, "")
+      : senderJid.split("@")[0].replace(/\D/g, "");
 
     const text =
       data?.message?.conversation ||
@@ -51,10 +65,34 @@ export function createEvolutionService(cfg?: {
       senderPhone,
       chatId: isGroup ? remoteJid : senderPhone,
       isGroup,
+      senderJid,
+      senderIsLid: senderIsLid && !altJid,
       contactName: data?.pushName || "Equipe",
       text: String(text),
       waMessageId: data?.key?.id || "",
     };
+  }
+
+  /** Traduz o LID de um participante do grupo no telefone dele (via dados do grupo). */
+  async function resolveGroupMemberPhone(groupJid: string, memberJid: string): Promise<string | null> {
+    if (!isConfigured()) return null;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(
+        `${url}/group/findGroupInfos/${instance}?groupJid=${encodeURIComponent(groupJid)}`,
+        { headers: { apikey: apiKey }, signal: controller.signal },
+      );
+      clearTimeout(timeoutId);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const found = (data?.participants ?? []).find((p: any) => p?.id === memberJid);
+      const phone = String(found?.phoneNumber ?? "");
+      return phone.endsWith("@s.whatsapp.net") ? phone.split("@")[0].replace(/\D/g, "") : null;
+    } catch (err: any) {
+      console.error("resolveGroupMemberPhone falhou:", err?.message || String(err));
+      return null;
+    }
   }
 
   async function sendText(to: string, text: string) {
@@ -89,5 +127,5 @@ export function createEvolutionService(cfg?: {
     }
   }
 
-  return { isConfigured, parseWebhookEvent, sendText };
+  return { isConfigured, parseWebhookEvent, resolveGroupMemberPhone, sendText };
 }

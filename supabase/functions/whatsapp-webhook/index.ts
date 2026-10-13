@@ -41,14 +41,23 @@ serve(async (req) => {
     const incoming = evolution.parseWebhookEvent(body);
     if (!incoming) return ok({ status: "ignored", event: body?.event ?? null });
 
-    const { senderPhone, chatId, isGroup, contactName, text: messageText, waMessageId } = incoming;
+    const { chatId, isGroup, contactName, text: messageText, waMessageId } = incoming;
 
     // ── Autorização: nada de paciente. Só a equipe. ─────────────────────
-    if (!ADMIN_PHONE_NUMBERS.includes(senderPhone)) {
-      return ok({ status: "ignored_unauthorized" });
-    }
+    // Grupos: só o grupo da equipe configurado.
     if (isGroup && chatId !== ADMIN_GROUP) {
       return ok({ status: "ignored_group" });
+    }
+
+    // Em grupo o WhatsApp pode identificar o autor por LID; traduz para o telefone.
+    let senderPhone = incoming.senderPhone;
+    if (isGroup && incoming.senderIsLid) {
+      const resolved = await evolution.resolveGroupMemberPhone(chatId, incoming.senderJid);
+      if (resolved) senderPhone = resolved;
+    }
+
+    if (!ADMIN_PHONE_NUMBERS.includes(senderPhone)) {
+      return ok({ status: "ignored_unauthorized" });
     }
 
     // ── Conversa (uma por telefone ou por grupo) ────────────────────────
