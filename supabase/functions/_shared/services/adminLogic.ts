@@ -82,7 +82,7 @@ export function normalizePhone(raw: string): string {
 }
 
 export interface PendingAction {
-  type: "agendar" | "cancelar" | "pagamento" | "cadastro" | "editar_paciente" | "excluir_paciente";
+  type: "agendar" | "cancelar" | "pagamento" | "cadastro" | "editar_paciente" | "excluir_paciente" | "remarcar";
   summary: string;
   params: Record<string, any>;
   created_at: string;

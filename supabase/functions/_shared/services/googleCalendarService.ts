@@ -90,6 +90,21 @@ export function createGoogleCalendarService(supabase: any, ownerUserId: string) 
     return data as { id: string };
   }
 
+  async function updateEventTimes(eventId: string, startIso: string, endIso: string) {
+    const token = await getAccessToken();
+    const res = await fetch(`${CALENDAR_BASE}/${encodeURIComponent(eventId)}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        start: { dateTime: startIso, timeZone: TIME_ZONE },
+        end: { dateTime: endIso, timeZone: TIME_ZONE },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message ?? "Erro ao remarcar o evento");
+    return data as { id: string };
+  }
+
   async function deleteEvent(eventId: string) {
     const token = await getAccessToken();
     const res = await fetch(`${CALENDAR_BASE}/${encodeURIComponent(eventId)}`, {
@@ -102,5 +117,5 @@ export function createGoogleCalendarService(supabase: any, ownerUserId: string) 
     }
   }
 
-  return { listEvents, createEvent, deleteEvent };
+  return { listEvents, createEvent, updateEventTimes, deleteEvent };
 }

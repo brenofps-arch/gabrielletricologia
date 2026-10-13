@@ -124,6 +124,16 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
         return `✅ Cancelado: ${p.summary}`;
       }
 
+      if (p.type === "remarcar") {
+        await gcal.updateEventTimes(a.event_id, a.startIso, a.endIso);
+        await supabase
+          .from("appointments")
+          .update({ appointment_date: a.date, appointment_time: a.time })
+          .eq("user_id", ownerUserId)
+          .eq("google_calendar_event_id", a.event_id);
+        return `✅ Remarcado: ${p.summary}`;
+      }
+
       if (p.type === "pagamento") {
         const { error } = await supabase.from("payments").insert({
           user_id: ownerUserId,
@@ -381,6 +391,65 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
             paciente_cadastrado: !!patient,
             conflitos: conflicts.map((c) => c.summary),
           };
+        },
+      },
+      {
+        name: "propor_remarcacao",
+        description:
+          "Remarca (muda a data/horário) de um compromisso já existente de um paciente, mantendo o mesmo evento. " +
+          "NÃO altera: pede o ok da equipe.",
+        parameters: {
+          type: "object",
+          properties: {
+            paciente: { type: "string", description: "Nome (ou parte) do paciente" },
+            data_atual: { type: "string", description: "YYYY-MM-DD do compromisso atual (opcional; se omitido usa o próximo)" },
+            nova_data: { type: "string", description: "YYYY-MM-DD" },
+            nova_hora: { type: "string", description: "HH:MM" },
+          },
+          required: ["paciente", "nova_data", "nova_hora"],
+        },
+        execute: async (args: any) => {
+          const newDate = String(args?.nova_data ?? "");
+          const newTime = String(args?.nova_hora ?? "").slice(0, 5);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate) || !/^\d{2}:\d{2}$/.test(newTime)) {
+            return { error: "Nova data ou hora inválida." };
+          }
+
+          const fromIso = new Date(Date.now() - 86400000).toISOString();
+          const toIso = new Date(Date.now() + 150 * 86400000).toISOString();
+          const events = (await gcal.listEvents(fromIso, toIso)).filter(
+            (e) => matchByName([{ name: e.summary }], String(args?.paciente ?? "")).length > 0,
+          );
+          const currentDate = String(args?.data_atual ?? "");
+          const candidates = /^\d{4}-\d{2}-\d{2}$/.test(currentDate)
+            ? events.filter((e) => toBrt(e.start).date === currentDate)
+            : events;
+          if (candidates.length === 0) {
+            return { encontrado: false, aviso: "Não achei compromisso futuro desse paciente na agenda." };
+          }
+          if (candidates.length > 1 && !/^\d{4}-\d{2}-\d{2}$/.test(currentDate)) {
+            return { precisa_escolher: candidates.slice(0, 5).map(describeEvent) };
+          }
+          const ev = candidates[0];
+          const durationMin = Math.max(15, Math.round((new Date(ev.end).getTime() - new Date(ev.start).getTime()) / 60000));
+          const startIso = brtDateTime(newDate, newTime);
+          const endIso = addMinutesBrt(newDate, newTime, durationMin);
+
+          const conflicts = (await dayEvents(newDate)).filter(
+            (e) => e.id !== ev.id && new Date(e.start) < new Date(endIso) && new Date(e.end) > new Date(startIso),
+          );
+          const old = describeEvent(ev);
+          const summary =
+            `Remarcar ${ev.summary}: de ${old.dia} ${formatDateBr(old.data)} às ${old.inicio} ` +
+            `para ${weekdayLabel(newDate)} ${formatDateBr(newDate)} às ${newTime}` +
+            (conflicts.length ? `\n⚠️ Já existe nesse horário: ${conflicts.map((c) => c.summary).join("; ")}` : "");
+          setPending({
+            type: "remarcar",
+            summary,
+            created_at: new Date().toISOString(),
+            params: { event_id: ev.id, startIso, endIso, date: newDate, time: newTime },
+          });
+          return { preparado: true, resumo: summary, conflitos: conflicts.map((c) => c.summary) };
         },
       },
       {

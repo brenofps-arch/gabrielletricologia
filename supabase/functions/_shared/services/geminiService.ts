@@ -52,6 +52,29 @@ export function createGeminiService(apiKey?: string) {
     return data;
   }
 
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const isTransient = (e: unknown) => /Gemini (429|500|502|503|504)\b/.test(e instanceof Error ? e.message : String(e));
+
+  /** Tenta o modelo principal com novas tentativas e, se continuar fora do ar, o modelo reserva. */
+  async function callWithResilience(primary: string, payload: unknown) {
+    const fallback = Deno.env.get("GEMINI_FALLBACK_MODEL") || "gemini-3.1-flash-lite";
+    const models = fallback && fallback !== primary ? [primary, fallback] : [primary];
+    let lastErr: unknown;
+    for (const model of models) {
+      for (const wait of [0, 1500, 4000]) {
+        if (wait) await sleep(wait);
+        try {
+          return await callGemini(model, payload);
+        } catch (e) {
+          lastErr = e;
+          if (!isTransient(e)) throw e; // erro de verdade (chave, pedido inválido): não adianta repetir
+        }
+      }
+      console.error(`Gemini: modelo ${model} indisponível, tentando o reserva`);
+    }
+    throw lastErr;
+  }
+
   async function generateReply(opts: GenerateOptions): Promise<GenerateResult> {
     if (!isConfigured()) {
       return { text: "", toolCalls: [], error: "GEMINI_API_KEY não configurada" };
@@ -79,7 +102,7 @@ export function createGeminiService(apiKey?: string) {
     const executed: GenerateResult["toolCalls"] = [];
 
     for (let round = 0; round <= maxRounds; round++) {
-      const data = await callGemini(model, {
+      const data = await callWithResilience(model, {
         system_instruction: { parts: [{ text: opts.systemPrompt }] },
         contents,
         ...(toolConfig ? { tools: toolConfig } : {}),
