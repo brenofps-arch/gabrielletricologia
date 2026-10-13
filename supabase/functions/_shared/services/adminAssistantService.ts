@@ -14,6 +14,7 @@ import {
   normalizeReferral,
   normalizeText,
   parseBirthDate,
+  parsePatientFields,
   PendingAction,
   REFERRAL_LABELS,
   shortError,
@@ -41,6 +42,30 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
       .select("id, name, phone, cpf, clinic_location")
       .eq("user_id", ownerUserId);
     return data ?? [];
+  }
+
+  /** Quantos registros ligados ao paciente existem (para só excluir cadastro sem histórico). */
+  async function patientHistoryCounts(patientId: string): Promise<Record<string, number>> {
+    const tables: [string, string][] = [
+      ["consultas", "consultations"],
+      ["pagamentos", "payments"],
+      ["orçamentos", "quotes"],
+      ["exames", "lab_exams"],
+      ["receitas", "prescriptions"],
+      ["notas fiscais", "invoices"],
+      ["comprovantes", "payment_receipts"],
+      ["agendamentos", "appointments"],
+    ];
+    const out: Record<string, number> = {};
+    for (const [label, table] of tables) {
+      const { count, error } = await supabase
+        .from(table)
+        .select("id", { count: "exact", head: true })
+        .eq("patient_id", patientId);
+      // Se não der para conferir uma tabela, assume que há histórico (mais seguro).
+      out[label] = error ? 1 : (count ?? 0);
+    }
+    return out;
   }
 
   async function dayEvents(date: string) {
@@ -107,6 +132,32 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
         const { error } = await supabase.from("patients").insert({ user_id: ownerUserId, ...a.record });
         if (error) throw new Error(error.message);
         return `✅ Paciente cadastrado: ${p.summary.replace(/^Cadastrar paciente: /, "")}`;
+      }
+
+      if (p.type === "editar_paciente") {
+        const { error } = await supabase
+          .from("patients")
+          .update(a.changes)
+          .eq("id", a.patient_id)
+          .eq("user_id", ownerUserId);
+        if (error) throw new Error(error.message);
+        return `✅ Cadastro atualizado: ${p.summary.replace(/^Atualizar cadastro de /, "")}`;
+      }
+
+      if (p.type === "excluir_paciente") {
+        // Confere de novo, na hora de executar, que o paciente continua sem histórico.
+        const counts = await patientHistoryCounts(a.patient_id);
+        const total = Object.values(counts).reduce((x, y) => x + y, 0);
+        if (total > 0) {
+          return "❌ Não excluí: esse cadastro ganhou histórico (consultas, pagamentos etc.) desde o pedido.";
+        }
+        const { error } = await supabase
+          .from("patients")
+          .delete()
+          .eq("id", a.patient_id)
+          .eq("user_id", ownerUserId);
+        if (error) throw new Error(error.message);
+        return `✅ Cadastro excluído: ${a.patient_name}`;
       }
 
       return "Não reconheci essa ação. Nada foi alterado.";
@@ -376,6 +427,91 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
             params: { record },
           });
           return { preparado: true, resumo: summary, parecidos_no_cadastro: similar };
+        },
+      },
+      {
+        name: "propor_edicao_paciente",
+        description:
+          "Corrige dados do cadastro de um paciente que JÁ existe (telefone, CPF, e-mail, nascimento, local, origem ou o nome). " +
+          "Só os campos informados são alterados. NÃO grava: pede o ok da equipe.",
+        parameters: {
+          type: "object",
+          properties: {
+            paciente: { type: "string", description: "Nome (ou parte) do paciente a corrigir" },
+            nome_novo: { type: "string", description: "Novo nome completo, se for corrigir o nome" },
+            telefone: { type: "string" },
+            cpf: { type: "string" },
+            email: { type: "string" },
+            data_nascimento: { type: "string", description: "DD/MM/AAAA" },
+            origem: { type: "string" },
+            local_atendimento: { type: "string" },
+          },
+          required: ["paciente"],
+        },
+        execute: async (args: any) => {
+          const matches = matchByName(await loadPatients(), String(args?.paciente ?? ""));
+          if (matches.length === 0) return { error: "Paciente não encontrado no cadastro." };
+          if (matches.length > 1) return { precisa_escolher: matches.slice(0, 6).map((p: any) => p.name) };
+          const patient: any = matches[0];
+
+          const { record, invalidos } = parsePatientFields({ ...args, nome: args?.nome_novo });
+          if (invalidos.length > 0) return { preparado: false, invalidos };
+          if (Object.keys(record).length === 0) return { error: "Nenhum dado novo informado para alterar." };
+
+          const rotulos: Record<string, string> = {
+            name: "nome", phone: "telefone", cpf: "CPF", email: "e-mail",
+            birth_date: "nascimento", clinic_location: "local", referral_source: "origem",
+          };
+          const mudancas = Object.entries(record)
+            .map(([k, v]) => `${rotulos[k] ?? k}: ${k === "birth_date" ? formatDateBr(String(v)) : v}`)
+            .join(" · ");
+          const summary = `Atualizar cadastro de *${patient.name}* → ${mudancas}`;
+          setPending({
+            type: "editar_paciente",
+            summary,
+            created_at: new Date().toISOString(),
+            params: { patient_id: patient.id, patient_name: patient.name, changes: record },
+          });
+          return { preparado: true, resumo: summary };
+        },
+      },
+      {
+        name: "propor_exclusao_paciente",
+        description:
+          "Exclui DEFINITIVAMENTE o cadastro de um paciente. Só funciona se o paciente NÃO tiver nenhum histórico " +
+          "(consultas, pagamentos, orçamentos, exames, notas, comprovantes, agendamentos). Útil para cadastro criado por engano. " +
+          "NÃO exclui: pede o ok da equipe.",
+        parameters: {
+          type: "object",
+          properties: { paciente: { type: "string", description: "Nome (ou parte) do paciente" } },
+          required: ["paciente"],
+        },
+        execute: async (args: any) => {
+          const matches = matchByName(await loadPatients(), String(args?.paciente ?? ""));
+          if (matches.length === 0) return { error: "Paciente não encontrado no cadastro." };
+          if (matches.length > 1) return { precisa_escolher: matches.slice(0, 6).map((p: any) => p.name) };
+          const patient: any = matches[0];
+
+          const counts = await patientHistoryCounts(patient.id);
+          const comHistorico = Object.entries(counts).filter(([, n]) => n > 0);
+          if (comHistorico.length > 0) {
+            return {
+              pode_excluir: false,
+              paciente: patient.name,
+              historico: Object.fromEntries(comHistorico),
+              orientacao:
+                "Esse paciente tem histórico, então a exclusão só pode ser feita pela própria Dra. no aplicativo, para não perder prontuário.",
+            };
+          }
+
+          const summary = `⚠️ EXCLUIR DEFINITIVAMENTE o cadastro de *${patient.name}* (sem nenhum histórico). Não dá para desfazer.`;
+          setPending({
+            type: "excluir_paciente",
+            summary,
+            created_at: new Date().toISOString(),
+            params: { patient_id: patient.id, patient_name: patient.name },
+          });
+          return { preparado: true, resumo: summary };
         },
       },
       {

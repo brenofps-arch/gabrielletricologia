@@ -82,7 +82,7 @@ export function normalizePhone(raw: string): string {
 }
 
 export interface PendingAction {
-  type: "agendar" | "cancelar" | "pagamento" | "cadastro";
+  type: "agendar" | "cancelar" | "pagamento" | "cadastro" | "editar_paciente" | "excluir_paciente";
   summary: string;
   params: Record<string, any>;
   created_at: string;
@@ -189,4 +189,47 @@ export function shortError(e: unknown): string {
   const status = raw.match(/"status"\s*:\s*"([A-Z_]+)"/)?.[1];
   const msg = raw.match(/"message"\s*:\s*"([^"]{0,140})/)?.[1];
   return [code ? `HTTP ${code}` : null, status, msg].filter(Boolean).join(" · ") || raw.slice(0, 120);
+}
+
+/** Valida e normaliza os campos de cadastro de paciente informados pela equipe. */
+export function parsePatientFields(args: Record<string, any>): { record: Record<string, any>; invalidos: string[] } {
+  const record: Record<string, any> = {};
+  const invalidos: string[] = [];
+
+  const nome = String(args?.nome ?? "").trim().replace(/\s+/g, " ");
+  if (nome) record.name = nome;
+
+  const phoneRaw = String(args?.telefone ?? "").trim();
+  if (phoneRaw) {
+    const digits = phoneRaw.replace(/\D/g, "");
+    if (digits.length < 10 || digits.length > 13) invalidos.push("telefone (precisa de DDD)");
+    else record.phone = phoneRaw;
+  }
+  const cpfRaw = String(args?.cpf ?? "").trim();
+  if (cpfRaw) {
+    const cpf = normalizeCpf(cpfRaw);
+    if (!cpf) invalidos.push("CPF (11 dígitos válidos)");
+    else record.cpf = cpf;
+  }
+  const emailRaw = String(args?.email ?? "").trim();
+  if (emailRaw) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) invalidos.push("e-mail");
+    else record.email = emailRaw.toLowerCase();
+  }
+  const birthRaw = String(args?.data_nascimento ?? "").trim();
+  if (birthRaw) {
+    const b = parseBirthDate(birthRaw);
+    if (!b) invalidos.push("data de nascimento (use DD/MM/AAAA)");
+    else record.birth_date = b;
+  }
+  const locRaw = String(args?.local_atendimento ?? "").trim();
+  if (locRaw) {
+    const loc = normalizeLocations(locRaw);
+    if (!loc) invalidos.push("local de atendimento (Vitória, Vila Velha, Cariacica ou Niterói)");
+    else record.clinic_location = loc;
+  }
+  const refRaw = String(args?.origem ?? "").trim();
+  if (refRaw) record.referral_source = normalizeReferral(refRaw);
+
+  return { record, invalidos };
 }
