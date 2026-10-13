@@ -189,8 +189,7 @@ export function shortError(e: unknown): string {
   const status = raw.match(/"status"\s*:\s*"([A-Z_]+)"/)?.[1];
   const msg = raw.match(/"message"\s*:\s*"([^"]{0,140})/)?.[1];
   // Erros nossos, em texto simples (ex.: "Gemini 504: sem resposta em 30s (modelo)"): mostra o texto.
-  const plain = raw.match(/^Gemini \d{3}:\s*([^{][^
-]{0,110})/)?.[1];
+  const plain = raw.match(/^Gemini \d{3}:\s*([^{][^\n]{0,110})/)?.[1];
   return [code ? `HTTP ${code}` : null, status, msg ?? plain].filter(Boolean).join(" · ") || raw.slice(0, 120);
 }
 
