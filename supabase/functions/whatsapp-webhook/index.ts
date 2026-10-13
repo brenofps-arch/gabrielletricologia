@@ -60,6 +60,22 @@ async function handle(body: any): Promise<Response> {
     }
     notifyTo = chatId;
 
+    // ── Proteções contra reentrega e fila atrasada ──────────────────────
+    // Mensagem antiga (computador/Docker ficou fora do ar): descarta em vez de responder tudo de uma vez.
+    if (incoming.timestampMs && Date.now() - incoming.timestampMs > 5 * 60 * 1000) {
+      return ok({ status: "ignored_stale" });
+    }
+    // Mesma mensagem entregue de novo (a Evolution repete quando o prazo estoura): não processa duas vezes.
+    if (waMessageId) {
+      const { data: seen } = await supabase
+        .from("whatsapp_messages")
+        .select("id")
+        .eq("wa_message_id", waMessageId)
+        .eq("direction", "inbound")
+        .limit(1);
+      if (seen && seen.length > 0) return ok({ status: "ignored_duplicate" });
+    }
+
     // ── Conversa (uma por telefone ou por grupo) ────────────────────────
     let { data: conversation } = await supabase
       .from("whatsapp_conversations")

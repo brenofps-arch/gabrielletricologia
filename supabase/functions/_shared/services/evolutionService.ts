@@ -13,6 +13,8 @@ export interface IncomingMessage {
   contactName: string;
   text: string;
   waMessageId: string;
+  /** Momento em que a mensagem foi enviada (ms), se o payload trouxer. */
+  timestampMs: number | null;
 }
 
 export function createEvolutionService(cfg?: {
@@ -70,6 +72,7 @@ export function createEvolutionService(cfg?: {
       contactName: data?.pushName || "Equipe",
       text: String(text),
       waMessageId: data?.key?.id || "",
+      timestampMs: Number(data?.messageTimestamp) > 0 ? Number(data.messageTimestamp) * 1000 : null,
     };
   }
 
