@@ -94,7 +94,8 @@ const QuoteHistory = ({ patientId, patientName }: Props) => {
   const openPayModal = (q: any) => {
     setPayTarget(q);
     setPayForm({
-      payment_status: q.payment_status || "paid",
+      // Orçamento pendente abre já como "Pago": quem registra pagamento quer, em regra, quitar.
+      payment_status: q.payment_status === "paid" || q.payment_status === "partial" ? q.payment_status : "paid",
       payment_method: q.payment_method || "",
       payment_date: q.payment_date || new Date().toISOString().split("T")[0],
       paid_amount: q.paid_amount != null ? String(q.paid_amount) : String(q.total_value),
@@ -110,9 +111,15 @@ const QuoteHistory = ({ patientId, patientName }: Props) => {
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
 
+    // Pago com valor menor que o total vira "parcial" (e não "pago" por engano).
+    const paidAmount = Number(payForm.paid_amount);
+    const total = Number(payTarget.total_value) || 0;
+    let finalStatus = payForm.payment_status;
+    if (finalStatus === "paid" && total > 0 && paidAmount < total) finalStatus = "partial";
+
     // 1. Atualizar status no orçamento
     const { error: qErr } = await supabase.from("quotes").update({
-      payment_status: payForm.payment_status,
+      payment_status: finalStatus,
       payment_method: payForm.payment_method,
       payment_date: payForm.payment_date,
       paid_amount: Number(payForm.paid_amount),
@@ -122,19 +129,33 @@ const QuoteHistory = ({ patientId, patientName }: Props) => {
     if (qErr) { toast.error("Erro ao salvar pagamento."); setSaving(false); return; }
 
     // 2. Registrar no histórico geral de pagamentos
-    const isPaidStatus = payForm.payment_status === "paid" || payForm.payment_status === "partial";
-    const { error: pErr } = await supabase.from("payments").insert({
-      user_id: user!.id,
-      patient_id: patientId,
-      quote_id: payTarget.id,
-      amount: Number(payForm.paid_amount),
+    const isPaidStatus = finalStatus === "paid" || finalStatus === "partial";
+    const paymentFields = {
+      amount: paidAmount,
       payment_method: payForm.payment_method,
       payment_date: payForm.payment_date,
       status: isPaidStatus ? "paid" : "pending",
       paid_at: isPaidStatus ? new Date().toISOString() : null,
-      description: `Pagamento de Orçamento / Protocolo (${new Date(payTarget.created_at).toLocaleDateString("pt-BR")})`,
       notes: payForm.payment_notes || null,
-    });
+    };
+
+    // Se este orçamento já tem lançamento, atualiza em vez de duplicar.
+    const { data: existing } = await supabase
+      .from("payments")
+      .select("id")
+      .eq("quote_id", payTarget.id)
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    const { error: pErr } = existing && existing.length > 0
+      ? await supabase.from("payments").update(paymentFields).eq("id", existing[0].id)
+      : await supabase.from("payments").insert({
+          user_id: user!.id,
+          patient_id: patientId,
+          quote_id: payTarget.id,
+          description: `Pagamento de Orçamento / Protocolo (${new Date(payTarget.created_at).toLocaleDateString("pt-BR")})`,
+          ...paymentFields,
+        });
 
     if (pErr) toast.error("Pagamento salvo no orçamento, mas falhou ao registrar no histórico.");
     else toast.success("Pagamento registrado com sucesso!");
