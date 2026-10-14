@@ -164,6 +164,7 @@ async function handle(body: any): Promise<Response> {
       text: messageText,
       senderName: contactName,
       hasPending: !!pending,
+      chatId,
     });
 
     if (result.pending) {

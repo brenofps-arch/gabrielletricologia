@@ -124,6 +124,29 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
         return `✅ Cancelado: ${p.summary}`;
       }
 
+      if (p.type === "lembrete") {
+        const { error } = await supabase.from("iris_reminders").insert({
+          user_id: ownerUserId,
+          text: a.text,
+          remind_at: a.remind_at,
+          chat_id: a.chat_id ?? null,
+          status: "pending",
+        });
+        if (error) throw new Error(error.message);
+        return `✅ Lembrete criado: ${p.summary}`;
+      }
+
+      if (p.type === "cancelar_lembrete") {
+        const { error } = await supabase
+          .from("iris_reminders")
+          .update({ status: "cancelled" })
+          .eq("id", a.reminder_id)
+          .eq("user_id", ownerUserId)
+          .eq("status", "pending");
+        if (error) throw new Error(error.message);
+        return `✅ Lembrete cancelado: ${p.summary}`;
+      }
+
       if (p.type === "remarcar") {
         await gcal.updateEventTimes(a.event_id, a.startIso, a.endIso);
         await supabase
@@ -188,7 +211,7 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
   }
 
   // ── Ferramentas do modelo ───────────────────────────────────────────
-  function buildTools(setPending: (p: PendingAction) => void): GeminiTool[] {
+  function buildTools(setPending: (p: PendingAction) => void, chatId: string): GeminiTool[] {
     return [
       {
         name: "consultar_agenda",
@@ -391,6 +414,105 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
             paciente_cadastrado: !!patient,
             conflitos: conflicts.map((c) => c.summary),
           };
+        },
+      },
+      {
+        name: "propor_lembrete",
+        description:
+          "Cria um LEMBRETE: na data e hora informadas a Íris escreve o texto no grupo/conversa. " +
+          "É a ÚNICA forma de lembrar a equipe de algo no futuro. NÃO grava: pede o ok da equipe.",
+        parameters: {
+          type: "object",
+          properties: {
+            texto: { type: "string", description: "O que deve ser lembrado, em uma frase curta" },
+            data: { type: "string", description: "YYYY-MM-DD" },
+            hora: { type: "string", description: "HH:MM (horário de Brasília)" },
+          },
+          required: ["texto", "data", "hora"],
+        },
+        execute: async (args: any) => {
+          const text = String(args?.texto ?? "").trim();
+          const date = String(args?.data ?? "");
+          const time = String(args?.hora ?? "").slice(0, 5);
+          if (!text) return { error: "Qual é o texto do lembrete?" };
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+            return { error: "Data ou hora inválida." };
+          }
+          const remindAt = new Date(brtDateTime(date, time));
+          if (isNaN(remindAt.getTime()) || remindAt.getTime() <= Date.now()) {
+            return { error: "Essa data e hora já passaram. Informe um momento futuro." };
+          }
+          const summary = `${weekdayLabel(date)} ${formatDateBr(date)} às ${time} — ${text}`;
+          setPending({
+            type: "lembrete",
+            summary,
+            created_at: new Date().toISOString(),
+            params: { text, remind_at: remindAt.toISOString(), chat_id: chatId },
+          });
+          return { preparado: true, resumo: summary };
+        },
+      },
+      {
+        name: "listar_lembretes",
+        description: "Lista os lembretes futuros que ainda não foram disparados.",
+        parameters: { type: "object", properties: {} },
+        execute: async () => {
+          const { data, error } = await supabase
+            .from("iris_reminders")
+            .select("id, text, remind_at")
+            .eq("user_id", ownerUserId)
+            .eq("status", "pending")
+            .order("remind_at", { ascending: true })
+            .limit(20);
+          if (error) return { error: error.message };
+          return {
+            total: (data ?? []).length,
+            lembretes: (data ?? []).map((r: any) => {
+              const w = toBrt(r.remind_at);
+              return { quando: `${weekdayLabel(w.date)} ${formatDateBr(w.date)} às ${w.time}`, texto: r.text };
+            }),
+          };
+        },
+      },
+      {
+        name: "propor_cancelamento_lembrete",
+        description: "Cancela um lembrete futuro, achando pelo trecho do texto. NÃO executa: pede o ok da equipe.",
+        parameters: {
+          type: "object",
+          properties: { trecho: { type: "string", description: "Parte do texto do lembrete" } },
+          required: ["trecho"],
+        },
+        execute: async (args: any) => {
+          const { data, error } = await supabase
+            .from("iris_reminders")
+            .select("id, text, remind_at")
+            .eq("user_id", ownerUserId)
+            .eq("status", "pending")
+            .order("remind_at", { ascending: true })
+            .limit(50);
+          if (error) return { error: error.message };
+          const found = (data ?? []).filter(
+            (r: any) => matchByName([{ name: r.text }], String(args?.trecho ?? "")).length > 0,
+          );
+          if (found.length === 0) return { encontrado: false, aviso: "Não achei lembrete pendente com esse texto." };
+          if (found.length > 1) {
+            return {
+              precisa_escolher: found.slice(0, 5).map((r: any) => {
+                const w = toBrt(r.remind_at);
+                return `${formatDateBr(w.date)} ${w.time} — ${r.text}`;
+              }),
+            };
+          }
+          const r: any = found[0];
+          const w = toBrt(r.remind_at);
+          const summary = `${weekdayLabel(w.date)} ${formatDateBr(w.date)} às ${w.time} — ${r.text}`;
+          setPending({
+            type: "cancelar_lembrete",
+            summary,
+            created_at: new Date().toISOString(),
+            params: { reminder_id: r.id },
+          });
+          return { preparado: true, resumo: summary };
         },
       },
       {
@@ -757,12 +879,15 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
     text: string;
     senderName: string;
     hasPending: boolean;
+    /** Conversa de origem (grupo ou telefone): é para lá que o lembrete será enviado. */
+    chatId: string;
   }): Promise<{ text: string; pending: PendingAction | null }> {
     const holder: { p: PendingAction | null } = { p: null };
     const nowBrt = toBrt(new Date().toISOString());
 
     const systemPrompt = buildAdminSystemPrompt({
       todayIso: nowBrt.date,
+      nowTime: nowBrt.time,
       weekday: weekdayLabel(nowBrt.date),
       senderName: input.senderName,
       hasPending: input.hasPending,
@@ -775,7 +900,7 @@ export function createAdminAssistant(supabase: any, ownerUserId: string) {
         userMessage: input.text,
         tools: buildTools((p) => {
           holder.p = p;
-        }),
+        }, input.chatId),
       });
       if (result.error) console.error("Gemini indisponível:", result.error);
       const text = result.text?.trim() || (holder.p ? "" : "Não consegui entender agora. Pode repetir, por favor?");
