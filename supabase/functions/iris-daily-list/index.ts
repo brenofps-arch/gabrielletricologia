@@ -17,7 +17,7 @@ import {
   visitKindFromTitle,
   weekdayLabel,
 } from "../_shared/services/adminLogic.ts";
-import { ADMIN_PHONE_NUMBERS, getAdminGroupJid, getOwnerUserId } from "../_shared/config.ts";
+import { getAdminGroupJid, getOwnerUserId } from "../_shared/config.ts";
 
 const JOB = "daily_list";
 
@@ -122,8 +122,10 @@ serve(async (req) => {
 
     if (dry) return json({ status: "dry_run", date: day, events: events.length, message, patientTexts });
 
+    // Só envia ao grupo da equipe; sem grupo configurado, não escreve em conversa privada.
     const group = getAdminGroupJid();
-    const targets = group ? [group] : ADMIN_PHONE_NUMBERS;
+    if (!group) return json({ status: "no_group_configured" });
+    const targets = [group];
     const results: boolean[] = [];
     for (const to of targets) {
       results.push((await evolution.sendText(to, message)).ok);

@@ -42,9 +42,12 @@ async function handle(body: any): Promise<Response> {
 
     const { chatId, isGroup, contactName, text: messageText, waMessageId } = incoming;
 
-    // ── Autorização: nada de paciente. Só a equipe. ─────────────────────
-    // Grupos: só o grupo da equipe configurado.
-    if (isGroup && chatId !== ADMIN_GROUP) {
+    // ── Autorização: nada de paciente, nada de conversa privada. ────────
+    // A Íris só atua no grupo da equipe configurado (IRIS_ADMIN_GROUP_JID).
+    if (!isGroup) {
+      return ok({ status: "ignored_direct" });
+    }
+    if (!ADMIN_GROUP || chatId !== ADMIN_GROUP) {
       return ok({ status: "ignored_group" });
     }
 

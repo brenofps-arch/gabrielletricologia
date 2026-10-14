@@ -4,7 +4,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createEvolutionService } from "../_shared/services/evolutionService.ts";
 import { toBrt, weekdayLabel, formatDateBr } from "../_shared/services/adminLogic.ts";
-import { ADMIN_PHONE_NUMBERS, getAdminGroupJid, getOwnerUserId } from "../_shared/config.ts";
+import { getAdminGroupJid, getOwnerUserId } from "../_shared/config.ts";
 
 const json = (payload: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(payload), { status, headers: { "Content-Type": "application/json" } });
@@ -57,9 +57,11 @@ serve(async (req) => {
         : "";
       const text = `⏰ *Lembrete:* ${r.text}${lateNote}`;
 
-      const targets = r.chat_id ? [r.chat_id] : group ? [group] : ADMIN_PHONE_NUMBERS;
+      // Só vai para o grupo da equipe (nunca para conversa privada).
+      const target = group ?? (String(r.chat_id ?? "").includes("@g.us") ? r.chat_id : null);
+      const targets = target ? [target] : [];
       let ok = false;
-      let lastError = "";
+      let lastError = targets.length ? "" : "sem grupo da equipe configurado";
       for (const to of targets) {
         const res = await evolution.sendText(to, text);
         if (res.ok) ok = true;
