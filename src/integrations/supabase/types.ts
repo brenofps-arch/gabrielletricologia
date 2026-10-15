@@ -394,6 +394,42 @@ export type Database = {
         }
         Relationships: []
       }
+      iris_reminders: {
+        Row: {
+          chat_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          remind_at: string
+          sent_at: string | null
+          status: string
+          text: string
+          user_id: string
+        }
+        Insert: {
+          chat_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          remind_at: string
+          sent_at?: string | null
+          status?: string
+          text: string
+          user_id: string
+        }
+        Update: {
+          chat_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          remind_at?: string
+          sent_at?: string | null
+          status?: string
+          text?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       lab_exams: {
         Row: {
           created_at: string
