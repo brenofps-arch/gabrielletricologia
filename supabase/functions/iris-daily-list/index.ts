@@ -1,9 +1,10 @@
 // Lista das consultas enviada à EQUIPE (nunca ao paciente).
 //
-// Agendamento sugerido (horário de Brasília):
-//   18h30  -> lista de AMANHÃ            (padrão: ?target=tomorrow)
-//   09h30  -> lista de HOJE, só se a das 18h30 não saiu (?target=today)
-// Cada data é enviada uma única vez (controle na tabela iris_job_runs).
+// Agendamento (horário de Brasília). Cada consulta aparece DUAS vezes:
+//   18h30 -> lista de quem atende daqui a 2 DIAS   (?lead=2)
+//   09h00 -> lista de quem atende AMANHÃ           (?lead=1)
+// (?lead=0 = hoje.) Cada lista de uma data é enviada uma única vez por antecedência
+// (controle na tabela iris_job_runs; ?force=1 reenvia, ?dry=1 só simula).
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createEvolutionService } from "../_shared/services/evolutionService.ts";
@@ -19,7 +20,6 @@ import {
 } from "../_shared/services/adminLogic.ts";
 import { getAdminGroupJid, getOwnerUserId } from "../_shared/config.ts";
 
-const JOB = "daily_list";
 
 const json = (payload: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(payload), { status, headers: { "Content-Type": "application/json" } });
@@ -35,7 +35,12 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const target = url.searchParams.get("target") === "today" ? "today" : "tomorrow";
+    // Antecedência em dias. Compatível com o antigo ?target=today|tomorrow.
+    const leadParam = url.searchParams.get("lead");
+    const lead = leadParam !== null && /^[0-2]$/.test(leadParam)
+      ? Number(leadParam)
+      : url.searchParams.get("target") === "today" ? 0 : 1;
+    const JOB = lead === 1 ? "daily_list" : `list_lead_${lead}`; // lead=1 mantém o nome antigo
     const force = url.searchParams.get("force") === "1";
     // dry=1: monta a lista e devolve o texto, sem enviar nada nem registrar.
     const dry = url.searchParams.get("dry") === "1";
@@ -48,14 +53,11 @@ serve(async (req) => {
     const evolution = createEvolutionService();
     if (!evolution.isConfigured()) return json({ status: "missing_configuration" });
 
-    // Data da lista, em Brasília.
+    // Data da lista, em Brasília: hoje + antecedência.
     const today = toBrt(new Date().toISOString()).date;
-    let day = today;
-    if (target === "tomorrow") {
-      const base = new Date(`${today}T12:00:00-03:00`);
-      base.setUTCDate(base.getUTCDate() + 1);
-      day = toBrt(base.toISOString()).date;
-    }
+    const base = new Date(`${today}T12:00:00-03:00`);
+    base.setUTCDate(base.getUTCDate() + lead);
+    let day = toBrt(base.toISOString()).date;
     // Simulação: permite escolher a data, mas só com dry=1 (nunca envia nada).
     const simulated = url.searchParams.get("date");
     if (dry && simulated && /^\d{4}-\d{2}-\d{2}$/.test(simulated)) day = simulated;
@@ -78,7 +80,8 @@ serve(async (req) => {
     const { data: patients } = await supabase.from("patients").select("name, phone, clinic_location").eq("user_id", owner);
     const list = patients ?? [];
 
-    const when = target === "today" ? "hoje" : "amanhã";
+    const when = lead === 0 ? "hoje" : lead === 1 ? "amanhã" : "em 2 dias";
+    const headerWhen = lead === 0 ? "de hoje" : lead === 1 ? "de amanhã" : "de depois de amanhã";
     const placeNames: Record<string, string> = {
       vila_velha: "Vila Velha", vitoria: "Vitória", cariacica: "Cariacica", niteroi: "Niterói",
     };
@@ -113,7 +116,7 @@ serve(async (req) => {
     });
 
     const message =
-      `📅 *Consultas de ${when}* (${weekdayLabel(day)}, ${formatDateBr(day)})\n\n` +
+      `📅 *Consultas ${headerWhen}* (${weekdayLabel(day)}, ${formatDateBr(day)})\n\n` +
       lines.join("\n") +
       `\n\nSe alguém cancelar, me avise aqui que eu tiro da agenda.` +
       (patientTexts.length

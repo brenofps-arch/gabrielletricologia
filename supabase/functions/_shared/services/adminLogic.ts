@@ -270,7 +270,7 @@ export function firstNameOf(fullName: string): string {
 export function confirmationText(input: {
   name: string;
   kind: VisitKind;
-  when: "hoje" | "amanhã";
+  when: "hoje" | "amanhã" | "em 2 dias";
   weekday: string;
   dateBr: string; // DD/MM/AAAA
   time: string; // HH:MM
@@ -281,7 +281,7 @@ export function confirmationText(input: {
   const nome = firstNameOf(input.name);
   return (
     `Olá, ${nome}! Tudo bem? 😊\n` +
-    `Passando para confirmar ${what} ${input.when === "hoje" ? "de hoje" : "de amanhã"}, ${input.weekday} (${input.dateBr.slice(0, 5)}), ` +
+    `Passando para confirmar ${what}${input.when === "hoje" ? " de hoje" : input.when === "amanhã" ? " de amanhã" : ""}, ${input.weekday} (${input.dateBr.slice(0, 5)}), ` +
     `às ${input.time}${place}.\n` +
     `Podemos contar com a sua presença? Se precisar reagendar, é só nos avisar. Obrigada! 💛`
   );
