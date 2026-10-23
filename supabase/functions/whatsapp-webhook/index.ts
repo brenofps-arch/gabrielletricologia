@@ -172,7 +172,10 @@ async function handle(body: any): Promise<Response> {
 
     if (result.pending) {
       await setContext({ ...context, pending_action: result.pending });
-      const header = result.text ? `${result.text}\n\n` : "";
+      // O modelo às vezes imita o bloco "Vou fazer isto" do histórico; o bloco oficial é montado aqui.
+      const cut = result.text.search(/📝|vou fazer isto|responda\s+\*?ok\*?/i);
+      const intro = (cut >= 0 ? result.text.slice(0, cut) : result.text).trim();
+      const header = intro ? `${intro}\n\n` : "";
       await reply(
         `${header}📝 *Vou fazer isto:*\n${result.pending.summary}\n\nResponda *ok* para confirmar ou *não* para descartar.`,
       );
